@@ -1,0 +1,59 @@
+{ 
+   "licenseType" : "CC BY", 
+   "creatorName" : "custom", 
+   "packageName" : "test_scene", 
+   "standardReferenceVersionOption" : "Latest", 
+   "scriptReferenceVersionOption" : "Exact", 
+   "description" : "", 
+   "credits" : "", 
+   "instructions" : "", 
+   "promotionalLink" : "", 
+   "programVersion" : "1.21.1.0", 
+   "contentList" : [ 
+      "Saves/scene/test_scene.json", 
+      "Saves/scene/test_scene.jpg"
+   ], 
+   "dependencies" : { 
+      "Blazedust.Script_ParentHoldLink.1" : { 
+         "licenseType" : "FC", 
+         "dependencies" : { 
+         }
+      }, 
+      "Hunting-Succubus.EyeBall_Shadow.latest" : { 
+         "licenseType" : "CC BY-NC", 
+         "dependencies" : { 
+         }
+      }, 
+      "Hunting-Succubus.Enhanced_Eyes.latest" : { 
+         "licenseType" : "CC BY-NC", 
+         "dependencies" : { 
+         }
+      }, 
+      "Roac.Arty.latest" : { 
+         "licenseType" : "CC BY", 
+         "dependencies" : { 
+         }
+      }, 
+      "Roac.Arty_ponytail.latest" : { 
+         "licenseType" : "CC BY", 
+         "dependencies" : { 
+         }
+      }, 
+      "Spacedog.Import_Reloaded_Lite.latest" : { 
+         "licenseType" : "FC", 
+         "dependencies" : { 
+         }
+      }, 
+      "kemenate.Decals.latest" : { 
+         "licenseType" : "FC", 
+         "dependencies" : { 
+         }
+      }
+   }, 
+   "customOptions" : { 
+      "preloadMorphs" : "false"
+   }, 
+   "hadReferenceIssues" : "false", 
+   "referenceIssues" : [ 
+   ]
+}
