@@ -15,7 +15,7 @@ class VarConfig:
                 return json.load(read_file)
         else:
             with open("dependency_manager.cfg", "w", encoding="UTF-8") as write_file:
-                write_file.write(json.dumps({"REMOTE_PATH": ""}))
+                write_file.write(json.dumps({"REMOTE_PATH": ""}, indent=2))
             return {}
 
     @property
