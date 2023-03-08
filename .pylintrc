@@ -1,0 +1,18 @@
+[MASTER]
+
+# Disable the following errors when linting
+# Line length is controlled by black and isort, so pylint raising errors around this is meaningless
+disable=line-too-long,
+# Docstrings are nice, but not every self explained property needs one
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+# Some code is complex because of the atom structures... it just is what it is
+    too-many-branches,
+    too-many-nested-blocks,
+    too-many-arguments,
+    too-many-locals,
+    too-many-return-statements,
+    too-many-public-methods,
+    too-few-public-methods,
+    c-extension-no-member
