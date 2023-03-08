@@ -18,7 +18,7 @@ class ConsoleMenu:
 
     def run(self):
         print(f"{self.menu_name} v{self.menu_version}")
-        print(f"{DIVIDER}Local: {self.local_path}\nRemote:{self.remote_path}")
+        print(f"{DIVIDER}Local: {self.local_path}\nRemote: {self.remote_path}")
         action = self.menu_main()
         while action is not None:
             if isinstance(action, ConsoleMenuItem):

@@ -1,7 +1,7 @@
 from depmanager.common.shared.console_menu import ConsoleMenu
 from depmanager.common.var_services.databases.var_cache_service import VarCacheService
 from depmanager.common.var_services.var_menu.menu_main import MenuMain
-from depmanager.common.version_var import VAR
+from depmanager.version_var import VAR
 
 
 class VarConsoleMenu(ConsoleMenu):

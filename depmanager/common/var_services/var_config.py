@@ -1,4 +1,5 @@
 import ctypes
+import json
 import os
 import sys
 
@@ -7,6 +8,16 @@ IMAGE_RESOURCE_DIR = sys._MEIPASS if hasattr(sys, "_MEIPASS") else "resources"
 
 
 class VarConfig:
+    @property
+    def local(self):
+        if os.path.exists("dependency_manager.cfg"):
+            with open("dependency_manager.cfg", "r", encoding="UTF-8") as read_file:
+                return json.load(read_file)
+        else:
+            with open("dependency_manager.cfg", "w", encoding="UTF-8") as write_file:
+                write_file.write(json.dumps({"REMOTE_PATH": ""}))
+            return {}
+
     @property
     def local_path(self):
         file_path = os.getenv("LOCAL_PATH")
@@ -22,7 +33,7 @@ class VarConfig:
     def remote_var_path(self):
         file_path = os.getenv("REMOTE_PATH")
         if file_path is None:
-            file_path = ""
+            file_path = self.local.get("REMOTE_PATH")
         return file_path
 
     @property

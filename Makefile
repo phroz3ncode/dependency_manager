@@ -1,4 +1,4 @@
-file := depmanager/common/version_var.py
+file := depmanager/version_var.py
 var_file := $(shell cat ${file})
 var_version = $(addsuffix $(subst .,_,$(subst VAR = ,,$(var_file))),dependency_manager_)
 
