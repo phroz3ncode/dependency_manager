@@ -18,10 +18,7 @@ lint:
 	python -m black --line-length 120 depmanager
 	python -m pylint depmanager
 
-setup:
-	pip3 install pyinstaller
-
-build-var:
+build:
 	pyinstaller \
 		--onefile \
 		--name $(var_version) \
@@ -32,9 +29,6 @@ build-var:
 		depmanager/run_var.py
 	#find . -name "$(var_version).spec" -exec rm {} \;
 	rm -rf build/$(var_version)
-
-build-kk:
-	pyinstaller --onefile --name kk_manager depmanager/run_kk.py
 
 clean:
 	find . -name "*.spec" -exec rm {} \;
