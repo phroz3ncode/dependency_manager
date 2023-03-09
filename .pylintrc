@@ -14,5 +14,6 @@ disable=line-too-long,
     too-many-locals,
     too-many-return-statements,
     too-many-public-methods,
+    too-many-statements,
     too-few-public-methods,
     c-extension-no-member

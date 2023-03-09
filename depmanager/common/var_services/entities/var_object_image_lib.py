@@ -47,8 +47,12 @@ class VarObjectImageLib:
 
     @cached_property
     def is_compressible(self) -> bool:
-        compressible_jpg = [item for item in self.infolist if path.splitext(item[0])[1] == Ext.JPG and item[1] > MEGABYTE]
-        compressible_png = [item for item in self.infolist if path.splitext(item[0])[1] == Ext.PNG and item[1] > 5 * MEGABYTE]
+        compressible_jpg = [
+            item for item in self.infolist if path.splitext(item[0])[1] == Ext.JPG and item[1] > MEGABYTE
+        ]
+        compressible_png = [
+            item for item in self.infolist if path.splitext(item[0])[1] == Ext.PNG and item[1] > 5 * MEGABYTE
+        ]
         return len(compressible_jpg) > 0 or len(compressible_png) > 0
 
     @cached_property
