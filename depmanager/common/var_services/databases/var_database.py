@@ -693,11 +693,17 @@ class VarDatabase:
         if has_multiple_versions:
             mappings = self.optimize_multiple_versions(mappings, mapping_versions)
 
-        replacement_mappings = {
-            key: f"{package}.{version}:/{package_file}" if package is not None else None
-            for (key, package, version, package_file) in mappings
-            if key is not None
-        }
+        replacement_mappings = {}
+        for key, package, version, package_file in mappings:
+            if key is None:
+                continue
+            if package is not None:
+                if version is not None:
+                    replacement_mappings[key] = f"{package}.{version}:/{package_file}"
+                else:
+                    replacement_mappings[key] = f"{package}:/{package_file}"
+            else:
+                replacement_mappings[key] = None
         replacement_mappings = {key: val for key, val in replacement_mappings.items() if key != val}
         used_packages = set(
             f"{package}.{version}" for (_, package, version, _) in mappings if package != "SELF" and package is not None

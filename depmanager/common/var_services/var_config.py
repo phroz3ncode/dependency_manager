@@ -43,3 +43,7 @@ class VarConfig:
         except AttributeError:
             is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
         return is_admin
+
+    @property
+    def auto_compress(self):
+        return False

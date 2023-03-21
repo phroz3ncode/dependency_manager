@@ -104,6 +104,8 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         current_subdir = self.sub_directory
         if self.is_versioned:
             return current_subdir
+        if self.is_required:
+            return current_subdir
         if self.is_vamx:
             return self.var_type.DIR_VAMX
         if self.is_custom:

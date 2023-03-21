@@ -102,6 +102,10 @@ class VarObjectBase:
         return "versioned" in self.directory
 
     @cached_property
+    def is_required(self) -> bool:
+        return "required" in self.directory
+
+    @cached_property
     def is_vamx(self) -> bool:
         return str.lower(self.author) == "vamx"
 

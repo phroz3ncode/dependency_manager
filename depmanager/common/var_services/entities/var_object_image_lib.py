@@ -115,13 +115,16 @@ class VarObjectImageLib:
             return None
 
         # Try to store the image at 95 quality
-        img_out = self._write_image_to_buffer(img_downsampled, image_format, quality=95)
-        ratio = img_out.getbuffer().nbytes / original_image_size
-        if ratio < 0.8:
-            return img_out
+        try:
+            img_out = self._write_image_to_buffer(img_downsampled, image_format, quality=95)
+            ratio = img_out.getbuffer().nbytes / original_image_size
+            if ratio < 0.8:
+                return img_out
+            # Give up and return the original image
+            return None
 
-        # Give up and return the original image
-        return None
+        except ValueError:
+            return None
 
     def compress(self):
         # print(f"\nCOMPRESSING: {self.file_path}")

@@ -1,5 +1,6 @@
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
 from depmanager.common.var_services.databases.image_lib_database import ImageLibDatabase
+from depmanager.common.var_services.var_config import VarConfig
 from depmanager.common.var_services.var_menu.base_actions_menu import BaseActionsMenu
 from depmanager.common.var_services.var_menu.menu_maintenance import MenuMaintenance
 from depmanager.common.var_services.var_menu.menu_organize import MenuOrganize
@@ -40,7 +41,7 @@ class MenuMain(BaseActionsMenu):
 
     def organize_local_to_remote(self):
         filters = self.get_var_filters()
-        self.cache.auto_organize_local_files_to_remote(filters=filters)
+        self.cache.auto_organize_local_files_to_remote(filters=filters, compress=VarConfig.auto_compress)
         image_db = ImageLibDatabase(self.cache.remote_db, self.cache.local_path)
         image_db.load()
         image_db.update(save_after_update=True)

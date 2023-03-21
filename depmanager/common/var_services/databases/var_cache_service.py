@@ -231,7 +231,7 @@ class VarCacheService:
                 if not repaired:
                     continue
                 self.remote_db.repair_metadata(var_ref)
-            if compress and var_ref.is_compressible:
+            if var_ref.is_compressible:
                 var_ref.compress()
             local_var_ids.append(var_id)
 
