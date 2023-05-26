@@ -31,9 +31,9 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         infolist=None,
         dependencies=None,
         used_packages=None,
-        quick=False,
+        quick_scan=False,
     ):
-        self.quick = quick
+        self.quick = quick_scan
         super().__init__(root_path, file_path, info)
         self.infolist = infolist if infolist is not None else self._var_raw_data["infolist"]
         self.dependencies = dependencies if dependencies is not None else self._var_raw_data["dependencies"]

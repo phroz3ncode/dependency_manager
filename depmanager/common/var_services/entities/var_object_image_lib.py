@@ -23,6 +23,18 @@ from depmanager.common.var_services.var_config import IMAGE_RESOURCE_DIR
 PIL.Image.MAX_IMAGE_PIXELS = 225000000
 
 
+def _downsample_image_if_possible(img: Image, allow_4k_scaling=False) -> tuple[Image, bool]:
+    desired = None
+    if img.height >= 8000 and img.width >= 8000:
+        desired = (4096, 4096)
+    elif allow_4k_scaling and img.height >= 4000 and img.width >= 4000:
+        desired = (2048, 2048)
+
+    if desired:
+        return img.resize(desired, Image.LANCZOS), True
+    return img, False
+
+
 class VarObjectImageLib:
     contains: dict[str, bool]
     dependencies: list[str]
@@ -82,17 +94,6 @@ class VarObjectImageLib:
                 files.append(file)
         return files
 
-    def _downsample_image_if_possible(self, img: Image, allow_4k_scaling=False) -> tuple[Image, bool]:
-        desired = None
-        if img.height >= 8000 and img.width >= 8000:
-            desired = (4096, 4096)
-        elif allow_4k_scaling and img.height >= 4000 and img.width >= 4000:
-            desired = (2048, 2048)
-
-        if desired:
-            return img.resize(desired, Image.LANCZOS), True
-        return img, False
-
     @staticmethod
     def _write_image_to_buffer(img: Image, img_format: str, quality=95):
         buffer = BytesIO()
@@ -108,9 +109,7 @@ class VarObjectImageLib:
         if original_img.height != original_img.width:
             return None
 
-        img_downsampled, is_downsampled = self._downsample_image_if_possible(
-            original_img, allow_4k_scaling=allow_4k_scaling
-        )
+        img_downsampled, is_downsampled = _downsample_image_if_possible(original_img, allow_4k_scaling=allow_4k_scaling)
         if not is_downsampled and not allow_large_updates:
             return None
 
@@ -203,7 +202,11 @@ class VarObjectImageLib:
         img = Image.open(stream)
         if img.height != 400 and img.width != 400:
             img = img.resize((400, 400), Image.LANCZOS)
-        img = img.convert("RGB")
+
+        if isinstance(img.info["transparency"], bytes):
+            img = img.convert("RGBA")
+        else:
+            img = img.convert("RGB")
         return img
 
     def extract_identity_image_data(self) -> Optional[Image.Image]:

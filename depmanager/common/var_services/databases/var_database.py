@@ -1,10 +1,12 @@
 import io
+import itertools
 import json
 import os
 import shutil
 import zipfile
 from collections import defaultdict
 from json import JSONDecodeError
+from multiprocessing import Pool
 from os import path
 from typing import Optional
 
@@ -13,6 +15,7 @@ from orjson import orjson
 from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import find_fuzzy_file_match
+from depmanager.common.shared.tools import get_file_stat
 from depmanager.common.shared.tools import select_fuzzy_match
 from depmanager.common.var_services.entities.var_object import VarObject
 from depmanager.common.var_services.enums import BACKWARDS_COMPAT_PLUGIN_AUTHORS
@@ -35,9 +38,12 @@ class VarDatabase:
     disable_save: bool
 
     # pylint: disable=redefined-builtin
-    def __init__(self, root: str = None, disable_save: bool = False, quick_scan: bool = False):
+    def __init__(self, root: str = None, image_root: str = None, disable_save: bool = False, quick_scan: bool = False):
+        self.pool = Pool()  # pylint: disable=consider-using-with
         self.rootpath = root
         self.root_db = "remote_db.json"
+        self.image_root = image_root
+        self.image_root_db = "image_lib"
         self.vars = {}
         self.disable_save = disable_save
         self.quick_scan = quick_scan
@@ -56,6 +62,10 @@ class VarDatabase:
     @property
     def keys(self):
         return set(self.vars.keys())
+
+    @property
+    def image_db_enabled(self) -> bool:
+        return self.image_root is not None
 
     def to_json(self) -> str:
         return orjson.dumps(
@@ -85,6 +95,8 @@ class VarDatabase:
         cached_properties = [
             "directory_count",
             "directory_listing",
+            "directory_files",
+            "vars_directory_files",
             "vars_versions",
             "vars_required",
             "repair_index",
@@ -100,18 +112,41 @@ class VarDatabase:
     def root_db_path(self):
         return path.join(self.rootpath, self.root_db)
 
+    def list_directory(self, scan_path: str, image_lib=False):
+        dir_listing = {}
+        for (dirpath, _, filenames) in os.walk(scan_path):
+            if not image_lib and self.ignore_directory(dirpath) or len(filenames) == 0:
+                continue
+            vars_in_filenames = [f for f in filenames if len(f) > 4 and f[-4:] == Ext.VAR]
+            if len(vars_in_filenames) > 0:
+                dir_listing[dirpath] = vars_in_filenames
+        return dir_listing
+
+    @cached_property
+    def directory_listing(self) -> dict[str, list]:
+        return self.list_directory(self.rootpath)
+
     @property
     def directory_count(self):
         return sum(len(item) for _, item in self.directory_listing.items())
 
     @cached_property
-    def directory_listing(self) -> defaultdict[str, list]:
-        dir_listing = defaultdict(list)
-        for (dirpath, _, filenames) in os.walk(self.rootpath):
-            if self.ignore_directory(dirpath):
-                continue
-            dir_listing[dirpath].extend(f for f in filenames if Ext.VAR in f)
-        return dir_listing
+    def directory_files(self) -> list[tuple[str, float, float]]:
+        print("Parallel scanning directories...")
+        files = [
+            os.path.join(f[1], f[0])
+            for f in list(
+                itertools.chain.from_iterable(
+                    itertools.product(files, [key]) for key, files in self.directory_listing.items()
+                )
+            )
+        ]
+        files_with_stats = self.pool.map(get_file_stat, files)
+        return files_with_stats
+
+    @cached_property
+    def vars_directory_files(self) -> set[str]:
+        return set(v.file_path for _, v in self.vars.items())
 
     @cached_property
     def vars_versions(self) -> defaultdict[str, set]:
@@ -273,12 +308,12 @@ class VarDatabase:
 
     def update_var(self, file_path):
         try:
-            var = VarObject(root_path=self.rootpath, file_path=file_path, quick=self.quick_scan)
+            var = VarObject(root_path=self.rootpath, file_path=file_path, quick_scan=self.quick_scan)
             self[var.var_id] = var
         except (ValueError, KeyError, PermissionError, zipfile.BadZipfile) as err:
             print(f"ERROR :: Could not read {file_path} >> {err}")
 
-    def add_file(self, file_path, quick=False) -> bool:
+    def add_file(self, file_path, filemod=None, filesize=None) -> bool:
         filename = path.basename(file_path)
         filename_ext = path.splitext(filename)[-1]
         if filename_ext != Ext.VAR:
@@ -290,48 +325,44 @@ class VarDatabase:
             return False
         var = self.vars.get(filename.replace(Ext.VAR, Ext.EMPTY))
         if var is not None:
-            if var.file_path == file_path:
-                if quick or (not quick and not var.updated):
-                    return False
-                if var.updated:
-                    print(f"Updating: {var.var_id}")
-                    self.update_var(file_path)
-                    return True
-            print(f"Warning: {file_path} is a duplicate var")
+            if var.file_path != file_path:
+                print(f"Warning: {file_path} is a duplicate var")
+                return False
+            if (filemod != var.modified and filesize != var.size) or (
+                (filemod is None or filesize is None) and var.updated
+            ):
+                print(f"Updating: {var.var_id}")
+                self.update_var(file_path)
+                return True
             return False
 
         self.update_var(file_path)
         return True
 
-    def add_files(self, quick=False, files_removed=False) -> None:
+    def add_files(self, files_removed=False) -> None:
         new_files_added = False
         progress = ProgressBar(self.directory_count, description="Scanning vars")
-        for (dirpath, _, filenames) in os.walk(self.rootpath):
-            if self.ignore_directory(dirpath):
-                continue
-            for file_to_add in filenames:
-                progress.inc()
-                file_added = self.add_file(path.join(dirpath, file_to_add), quick=quick)
-                if file_added:
-                    new_files_added = True
+        for filepath, filemod, filesize in self.directory_files:
+            progress.inc()
+            file_added = self.add_file(filepath, filemod, filesize)
+            if file_added:
+                new_files_added = True
         if not self.disable_save and (new_files_added or files_removed):
             self.save()
 
     def remove_files(self, display=True) -> bool:
-        remove_vars = []
-        progress = ProgressBar(len(self.keys), description="Scanning for removed")
-        files_removed = False
-        for var_id, var in self.vars.items():
-            progress.inc()
-            if var.filename not in self.directory_listing.get(var.directory, {}):
-                files_removed = True
-                remove_vars.append(var_id)
+        files = self.directory_files
+        present_files = set(f[0] for f in files)
+        current_var_files = self.vars_directory_files
+        removed_files = current_var_files - present_files
+        if len(removed_files) == 0:
+            return False
 
         if display:
-            for var in sorted(remove_vars):
+            for var in sorted(removed_files):
                 print(f"Removing: {var}")
                 self.vars.pop(var)
-        return files_removed
+        return True
 
     def get_var_ids_from_deps(self) -> set[str]:
         var_files = set()
@@ -362,10 +393,10 @@ class VarDatabase:
                 try:
                     os.symlink(src_path, dest_path)
                 except WindowsError:
-                    shutil.copyfile(src_path, dest_path)
+                    shutil.copy2(src_path, dest_path)
         else:
             if not path.isfile(dest_path):
-                shutil.copyfile(src_path, dest_path)
+                shutil.copy2(src_path, dest_path)
 
     def manipulate_file_list(self, var_id_list, sub_directory, append=False, remove=False, suffix=False) -> None:
         if len(var_id_list) == 0:
@@ -407,10 +438,10 @@ class VarDatabase:
         if not self.disable_save:
             self.save()
 
-    def refresh_files(self, quick=False) -> None:
+    def refresh_files(self) -> None:
         self._clear_cache()
         files_removed = self.remove_files()
-        self.add_files(quick=quick, files_removed=files_removed)
+        self.add_files(files_removed=files_removed)
 
     def get_var_name(self, var_id, always=False) -> Optional[str]:
         try:
@@ -601,13 +632,13 @@ class VarDatabase:
             os.remove(var_obj.file_path)
             os.rename(temp_file, var_obj.file_path)
 
-    def find_broken_vars(self):
+    def find_broken_vars(self, health_check=False):
         var_list = set()
         progress = ProgressBar(len(self.keys), description="Searching broken vars")
         track = {}
         for var_id in self.keys:
             progress.inc()
-            replacement_mappings, _ = self.find_var_replacement_mappings(self[var_id])
+            replacement_mappings, _ = self.find_var_replacement_mappings(self[var_id], health_check=health_check)
             if len(replacement_mappings) > 0:
                 var_list.add(var_id)
                 track.update(replacement_mappings)
@@ -674,8 +705,8 @@ class VarDatabase:
         package_parts = var_id.split(".")
         return f"{package_parts[0]}.{package_parts[1]}", package_parts[2]
 
-    def find_var_replacement_mappings(self, var_obj: VarObject):
-        mappings = self.find_broken_replacement_mappings(var_obj)
+    def find_var_replacement_mappings(self, var_obj: VarObject, health_check=False):
+        mappings = self.find_broken_replacement_mappings(var_obj, health_check=health_check)
 
         # If no mappings, there is nothing to do
         if len(mappings) == 0:
@@ -758,7 +789,7 @@ class VarDatabase:
 
         return mappings
 
-    def find_broken_replacement_mappings(self, var_obj: VarObject):
+    def find_broken_replacement_mappings(self, var_obj: VarObject, health_check=False):
         """Check the var for replacement references"""
         mappings = set()
         # Check each file that is used by the current var
@@ -795,7 +826,12 @@ class VarDatabase:
                 mappings.add((None, var_check_package.duplicate_id, version, check_package_file))
                 continue
 
-            # The reference is invalid, search to replace it
+            # The reference is invalid, if health check, quickly exit
+            if health_check:
+                mappings.add((replace_key, None, None, None))
+                continue
+
+            # Search to replace invalid reference
             found_id, found_path = self.find_replacement_from_repair_index(check_package_file)
             if found_id is None and check_package in ("SELF", "SELF_UNREF"):
                 # Attempt a local fuzzy replacement (maybe the file is misspelled)
@@ -821,7 +857,7 @@ class VarDatabase:
 
         return mappings
 
-    def repair_broken_var(self, var_ref: VarObject, remove_confirm=False) -> bool:
+    def repair_broken_var(self, var_ref: VarObject, remove_confirm=False, remove_skip=False) -> bool:
         # var_ref is from the local_db typically and is a quick load
         # This means it will not contain a detailed mapping of the var contents
         # We want to create a new object to make sure repairs are accurate by rescanning the local
@@ -858,9 +894,13 @@ class VarDatabase:
                 removing_files = True
                 print(f"{var_obj.var_id}: WILL REMOVE {check_value}")
 
-        if remove_confirm and removing_files:
-            confirm = input("Do you want to continue repairing this var? (y/n) ")
-            if confirm.lower() != "y":
+        if removing_files:
+            if remove_confirm:
+                confirm = input("Do you want to continue repairing this var? (y/n) ")
+                if confirm.lower() != "y":
+                    return False
+            if remove_skip:
+                print("Skipping file as removals required...")
                 return False
 
         if not repairable:

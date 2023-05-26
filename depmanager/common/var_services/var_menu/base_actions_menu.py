@@ -6,9 +6,8 @@ from depmanager.common.var_services.enums import Ext
 class BaseActionsMenu:
     cache: VarCacheService
 
-    def __init__(self, cache: VarCacheService, is_admin: bool = False):
+    def __init__(self, cache: VarCacheService):
         self.cache = cache
-        self.is_admin = is_admin
 
     def menu(self) -> ConsoleMenuItem:
         raise NotImplementedError("implement in descendents")

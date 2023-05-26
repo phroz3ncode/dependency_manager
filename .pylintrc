@@ -15,5 +15,6 @@ disable=line-too-long,
     too-many-return-statements,
     too-many-public-methods,
     too-many-statements,
+    too-many-instance-attributes,
     too-few-public-methods,
     c-extension-no-member

@@ -31,13 +31,23 @@ class VarParser:
                     continue
                 package_str = [word for word in line.split('"') if ":/" in word][0]
                 package_parts = package_str.split(":/")
-                package_path = package_parts[-1]
                 package = "::".join(package_parts[:-1])
+                # If there are "name" or "displayName" hooks we should dump the A_ referencing
+                if package[:2] == "A_" and "name" in line.lower():
+                    if ":" in package:
+                        package = package.split(":")[1]
+                    else:
+                        package = package[2:]
+
+                package_path = package_parts[-1]
+                package_path = package_path.replace(":False", "").replace(":True", "")
                 packages[package].add(package_path)
-            elif "Custom/" in line:
-                packages["SELF_UNREF"].add([word for word in line.split('"') if "Custom/" in word][0])
-            elif "Saves/" in line:
-                packages["SELF_UNREF"].add([word for word in line.split('"') if "Saves/" in word][0])
+            elif "Custom/" in line or "Saves/" in line:
+                split_on = "Custom/" if "Custom/" in line else "Saves/"
+                package_path = [word for word in line.split('"') if split_on in word][0]
+                if package_path[:2] == "A_" and ":" in package_path:
+                    package_path = package_path.split(":")[1]
+                packages["SELF_UNREF"].add(package_path)
         return packages
 
     @staticmethod

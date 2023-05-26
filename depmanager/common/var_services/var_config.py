@@ -8,36 +8,47 @@ IMAGE_RESOURCE_DIR = sys._MEIPASS if hasattr(sys, "_MEIPASS") else "resources"
 
 
 class VarConfig:
-    @property
-    def local(self):
-        if os.path.exists("dependency_manager.cfg"):
-            with open("dependency_manager.cfg", "r", encoding="UTF-8") as read_file:
-                return json.load(read_file)
-        else:
-            with open("dependency_manager.cfg", "w", encoding="UTF-8") as write_file:
-                write_file.write(json.dumps({"REMOTE_PATH": ""}, indent=2))
-            return {}
+    DEFAULT = {
+        "remote_path": os.getenv("REMOTE_PATH") if os.getenv("REMOTE_PATH") else "",
+        "compress_on_import": True,
+        "repair_on_import": True,
+        "repair_auto_skip_on_missing": False,
+        "repair_auto_fix_on_missing": False,
+        "favorites": {
+            "assets": [],
+            "looks": [],
+            "scenes": [],
+        },
+    }
+
+    def __init__(self):
+        self.config = None
+        self.config_file = (
+            os.path.join(os.getenv("LOCAL_PATH"), "dependency_manager.cfg")
+            if os.getenv("LOCAL_PATH")
+            else "dependency_manager.cfg"
+        )
+        self.read_config()
+        if self.config is None:
+            self.default_config()
+
+    def read_config(self):
+        if os.path.exists(self.config_file):
+            with open(self.config_file, "r", encoding="UTF-8") as read_file:
+                self.config = json.load(read_file)
+
+    def default_config(self):
+        with open(self.config_file, "w", encoding="UTF-8") as write_file:
+            write_file.write(json.dumps(self.DEFAULT, indent=2))
+        self.config = self.DEFAULT
+        if self.config["remote_path"] == "":
+            input(
+                "ERROR\nNo environment variables or remote path configured.\n"
+                "Please edit the dependency_manager.cfg file created during the first run and restart this program."
+            )
 
     @property
-    def local_path(self):
-        file_path = os.getenv("LOCAL_PATH")
-        if file_path is None:
-            # determine if application is a script file or frozen exe
-            if getattr(sys, "frozen", False):
-                file_path = os.path.dirname(os.path.realpath(sys.executable))
-            elif __file__:
-                file_path = os.path.dirname(os.path.realpath(__file__))
-        return file_path
-
-    @property
-    def remote_var_path(self):
-        file_path = os.getenv("REMOTE_PATH")
-        if file_path is None:
-            file_path = self.local.get("REMOTE_PATH")
-        return file_path
-
-    @property
-    def is_admin(self):
+    def is_admin(self) -> bool:
         try:
             is_admin = os.getuid() == 0
         except AttributeError:
@@ -45,5 +56,36 @@ class VarConfig:
         return is_admin
 
     @property
-    def auto_compress(self):
-        return False
+    def local_path(self) -> str:
+        file_path = os.getenv("LOCAL_PATH")
+        if file_path is None:
+            # determine if application is a script file or frozen exe
+            if getattr(sys, "frozen", False):
+                file_path = os.path.dirname(os.path.realpath(sys.executable))
+            elif __file__:
+                file_path = os.path.dirname(os.path.realpath(__file__))
+        return str(file_path)
+
+    @property
+    def remote_path(self) -> str:
+        return self.config["remote_path"]
+
+    @property
+    def auto_compress(self) -> bool:
+        return self.config["compress_on_import"]
+
+    @property
+    def auto_repair(self) -> bool:
+        return self.config["repair_on_import"]
+
+    @property
+    def auto_skip(self) -> bool:
+        return self.config["repair_auto_skip_on_missing"]
+
+    @property
+    def auto_fix(self) -> bool:
+        return self.config["repair_auto_fix_on_missing"]
+
+    @property
+    def favorites(self) -> dict[str, list[str]]:
+        return self.config["favorites"]

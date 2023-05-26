@@ -6,6 +6,7 @@ from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.var_services.databases.image_lib_database import ImageLibDatabase
 from depmanager.common.var_services.enums import TEMP_REPAIR_DIR
+from depmanager.common.var_services.enums import OrganizeMethods
 from depmanager.common.var_services.var_menu.base_actions_menu import BaseActionsMenu
 
 
@@ -14,21 +15,24 @@ class MenuMaintenance(BaseActionsMenu):
         return ConsoleMenuItem(
             "menu",
             [
-                ConsoleMenuItem("REFRESH remote database [QUICK]", self.refresh_quick),
-                ConsoleMenuItem("REFRESH local image_lib [QUICK]", self.refresh_image_lib),
-                ConsoleMenuItem("VALIDATE remote database", self.check_remote_health),
-                ConsoleMenuItem("VALIDATE local database", self.check_local_health),
+                ConsoleMenuItem("ORGANIZE remote vars", self.organize_remote),
+                ConsoleMenuItem("CREATE *.dep from local image_lib", self.build_dep_from_image_lib),
                 ConsoleMenuItem("REPAIR - Find and repair broken vars", self.find_and_repair),
                 ConsoleMenuItem("REPAIR - Find and optimize var dependencies", self.find_and_optimize),
                 ConsoleMenuItem("REPAIR - Compress vars images [SLOW]", self.compress_local),
                 ConsoleMenuItem("FIND what uses var", self.search_that_use),
                 ConsoleMenuItem("FIND low value vars", self.search_low_value),
+                ConsoleMenuItem("TAG unused vars", self.add_unused_var_tags),
+                ConsoleMenuItem("TAG used vars", self.add_used_var_tags),
+                ConsoleMenuItem("TAG vars with suffix from *.dep", self.add_suffix_var_tags),
+                ConsoleMenuItem("TAG unused vars for removed directories", self.tag_unused_remove),
+                ConsoleMenuItem("UNTAG unused vars", self.remove_unused_var_tags),
+                ConsoleMenuItem("UNTAG used vars", self.remove_used_var_tags),
             ],
         )
 
-    def refresh_quick(self):
-        self.cache.remote_db.refresh_files(quick=True)
-        self.cache.clear()
+    def organize_remote(self):
+        self.cache.auto_organize_remote_files()
 
     def refresh_image_lib(self):
         image_db = ImageLibDatabase(self.cache.remote_db, self.cache.local_path)
@@ -99,7 +103,7 @@ class MenuMaintenance(BaseActionsMenu):
             k for k, value in self.cache.local_db.vars.items() if TEMP_REPAIR_DIR in value.sub_directory
         ]
         for var_id in repairable_var_ids:
-            self.cache.remote_db.repair_broken_var(self.cache.local_db[var_id])
+            self.cache.remote_db.repair_broken_var(self.cache.local_db[var_id], remove_skip=True)
 
     def search_that_use(self):
         var_name = input("Name: ").strip()
@@ -123,3 +127,31 @@ class MenuMaintenance(BaseActionsMenu):
                     low_value.append((var_item.info["size"] / MEGABYTE, var_id, var_reqs))
         for var_id in sorted(low_value, reverse=True):
             print(var_id)
+
+    def add_unused_var_tags(self):
+        filters = self.get_var_filters()
+        self.cache.organize_remote_files(mode=OrganizeMethods.ADD_UNUSED_TAG, filters=filters)
+
+    def remove_unused_var_tags(self):
+        filters = self.get_var_filters()
+        self.cache.organize_remote_files(mode=OrganizeMethods.REMOVE_UNUSED_TAG, filters=filters)
+
+    def add_used_var_tags(self):
+        filters = self.get_var_filters()
+        self.cache.organize_remote_files(mode=OrganizeMethods.ADD_USED_TAG, filters=filters)
+
+    def remove_used_var_tags(self):
+        filters = self.get_var_filters()
+        self.cache.organize_remote_files(mode=OrganizeMethods.REMOVE_USED_TAG, filters=filters)
+
+    def add_suffix_var_tags(self):
+        filters = self.get_filename()
+        self.cache.organize_remote_files(mode=OrganizeMethods.SUFFIX_DEP, filters=filters)
+
+    def build_dep_from_image_lib(self):
+        image_db = ImageLibDatabase(self.cache.remote_db, self.cache.local_path)
+        image_db.build_dep_from_database()
+
+    def tag_unused_remove(self):
+        filters = self.get_var_filters()
+        self.cache.organize_remote_files(mode=OrganizeMethods.ADD_REMOVE_TAG, filters=filters)

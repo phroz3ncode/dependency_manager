@@ -129,3 +129,11 @@ class VarObjectBase:
         self.info["created"] = stats.st_ctime
         self.info["modified"] = stats.st_mtime
         self.info["size"] = stats.st_size
+
+    @property
+    def modified(self) -> float:
+        return self.info["modified"]
+
+    @property
+    def size(self) -> float:
+        return self.info["size"]

@@ -72,3 +72,8 @@ def substrings_in_str(str_a: str, str_list: list[str], ignore_case: bool = True)
 
 def are_substrings_in_str(str_a: str, str_list: list[str], ignore_case: bool = True) -> bool:
     return len(substrings_in_str(str_a, str_list, ignore_case)) > 0
+
+
+def get_file_stat(file_path) -> tuple[str, float, float]:
+    stats = os.stat(file_path)
+    return (file_path, stats.st_mtime, stats.st_size)

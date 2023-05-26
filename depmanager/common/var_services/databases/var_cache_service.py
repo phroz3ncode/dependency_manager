@@ -12,14 +12,22 @@ from depmanager.common.var_services.enums import TEMP_SYNC_DIR
 from depmanager.common.var_services.enums import Ext
 from depmanager.common.var_services.enums import OrganizeMethods
 from depmanager.common.var_services.utils.var_type import VarType
+from depmanager.common.var_services.var_config import VarConfig
 
 
 class VarCacheService:
-    def __init__(self, local_path, remote_path):
-        self.remote_path = remote_path
-        self.local_path = local_path
+    def __init__(self, var_config: VarConfig):
+        self.var_config = var_config
         self.remote_db_cache = None
         self.local_db_cache = None
+
+    @property
+    def remote_path(self) -> str:
+        return self.var_config.remote_path
+
+    @property
+    def local_path(self) -> str:
+        return self.var_config.local_path
 
     @property
     def remote_db(self) -> VarDatabase:
@@ -135,8 +143,27 @@ class VarCacheService:
         remote_present_ids = remote_present_ids - set(self.local_db.keys)
         return remote_present_ids, remote_missing_ids
 
+    def filter_remote_var_ids_to_remove_favorites(self, var_id_list) -> set[str]:
+        favorites = self.var_config.favorites
+        filtered = set()
+        for var_id in var_id_list:
+            var_data = self.remote_db[var_id]
+            if "assets" in var_data.sub_directory:
+                if not are_substrings_in_str(var_data.author, favorites.get("assets", [])):
+                    filtered.add(var_id)
+            elif "look" in var_data.sub_directory:
+                if not are_substrings_in_str(var_data.author, favorites.get("look", [])):
+                    filtered.add(var_id)
+            elif "scene" in var_data.sub_directory:
+                if not are_substrings_in_str(var_data.author, favorites.get("scene", [])):
+                    filtered.add(var_id)
+            else:
+                filtered.add(var_id)
+        return filtered
+
     def get_remote_unused(self, filters=None):
-        return self.remote_db.find_unused_vars(filters=filters)
+        unused_vars = self.remote_db.find_unused_vars(filters=filters)
+        return self.filter_remote_var_ids_to_remove_favorites(unused_vars)
 
     def get_remote_used(self, filters=None):
         return self.remote_db.find_unused_vars(filters=filters, invert=True)
@@ -189,22 +216,22 @@ class VarCacheService:
         duplicates = self.remote_duplicates
         unused_versioned = self.get_remote_unused(["_versioned"])
         unoptimized_vars = self.remote_db.find_unoptimized_vars()
-        broken_vars = self.remote_db.find_broken_vars()
+        broken_vars = self.remote_db.find_broken_vars(health_check=True)
         print("\nResults:")
         print(f"Remote size: {len(self.remote_db)} vars - {round(size / GIGABYTE, 2)} GB")
-        self.remote_db.display_var_list(missing, "Missing")
+        self.remote_db.display_var_list(missing, "Missing", show_used_by=True)
         self.remote_db.display_var_list(duplicates, "Unversioned duplicate")
         self.remote_db.display_var_list(unused_versioned, "Unused version")
         self.remote_db.display_var_list(unoptimized_vars, "Unoptimized dependencies")
-        self.remote_db.display_var_list(broken_vars, "Broken vars")
+        self.remote_db.display_var_list(broken_vars, "Broken")
 
     def auto_check_local_files_health(self):
         print("Checking health of local files")
         missing = self.local_missing
         print("\nResults:")
-        self.local_db.display_var_list(missing, "Missing")
+        self.local_db.display_var_list(missing, "Missing", show_used_by=True)
 
-    def auto_organize_local_files_to_remote(self, filters=None, repair=True, compress=True):
+    def auto_organize_local_files_to_remote(self, filters=None):
         if self.invalid_local:
             print("WARNING: Remote and local path are the same. Cannot update local missing.")
             return
@@ -222,16 +249,20 @@ class VarCacheService:
             return
 
         local_var_ids = []
-        for var_id in new_var_ids:
+        for var_id in sorted(new_var_ids):
             print(f"PROCESSING {var_id}...")
             var_ref = self.local_db[var_id]
-            if repair:
-                repaired = self.remote_db.repair_broken_var(var_ref, remove_confirm=True)
+            if self.var_config.auto_repair:
+                remove_confirm = not self.var_config.auto_fix
+                remove_skip = self.var_config.auto_skip
+                repaired = self.remote_db.repair_broken_var(
+                    var_ref, remove_confirm=remove_confirm, remove_skip=remove_skip
+                )
                 # If the repair failed or was cancelled, don't attempt to import the var
                 if not repaired:
                     continue
                 self.remote_db.repair_metadata(var_ref)
-            if var_ref.is_compressible:
+            if self.var_config.auto_compress and var_ref.is_compressible:
                 var_ref.compress()
             local_var_ids.append(var_id)
 
@@ -251,17 +282,17 @@ class VarCacheService:
             self.remote_db.add_file(os.path.join(self.remote_db.rootpath, var.sub_directory, var.filename))
         self.auto_organize_remote_files()
         self.remote_db.save()
-        self.remote_db.refresh_files(quick=True)
+        self.remote_db.refresh_files()
 
-    def fix_local_missing(self, is_admin=False):
+    def fix_local_missing(self):
         if self.invalid_local:
             print("WARNING: Remote and local path are the same. Cannot update local missing.")
             return
-        if not is_admin:
+        if not self.var_config.is_admin:
             print("WARNING: Files will be copied instead of symlinked. Run as admin to enable symlinks.")
 
         self.clear()
-        remote_present_ids, remote_missing_ids = self.get_remote_present_and_missing_ids()
+        remote_present_ids, _ = self.get_remote_present_and_missing_ids()
         if len(remote_present_ids) == 0:
             print("No remote vars to move...")
 
@@ -275,12 +306,12 @@ class VarCacheService:
                     var.var_id,
                     os.path.join(self.local_db.rootpath, "dependencies", var.sub_directory),
                     move=False,
-                    symlink=is_admin,
+                    symlink=self.var_config.is_admin,
                 )
         self.enable_local_plugins()
 
-        if len(remote_missing_ids) > 0:
-            self.local_db.display_var_list(remote_missing_ids, "Missing", show_used_by=True)
+        # if len(remote_missing_ids) > 0:
+        #     self.local_db.display_var_list(remote_missing_ids, "Missing", show_used_by=True)
 
     def enable_local_plugins(self):
         self.local_db_cache = None
