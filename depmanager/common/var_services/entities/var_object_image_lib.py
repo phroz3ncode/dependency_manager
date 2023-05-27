@@ -203,7 +203,7 @@ class VarObjectImageLib:
         if img.height != 400 and img.width != 400:
             img = img.resize((400, 400), Image.LANCZOS)
 
-        if isinstance(img.info["transparency"], bytes):
+        if isinstance(img.info.get("transparency"), bytes):
             img = img.convert("RGBA")
         else:
             img = img.convert("RGB")

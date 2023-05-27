@@ -5,11 +5,13 @@ import os
 import shutil
 import zipfile
 from collections import defaultdict
+from datetime import datetime
 from json import JSONDecodeError
 from multiprocessing import Pool
 from os import path
 from typing import Optional
 
+import filedate
 from orjson import orjson
 
 from depmanager.common.shared.cached_property import cached_property
@@ -43,7 +45,7 @@ class VarDatabase:
         self.rootpath = root
         self.root_db = "remote_db.json"
         self.image_root = image_root
-        self.image_root_db = "image_lib"
+        self.image_root_db = "image_lib.zip"
         self.vars = {}
         self.disable_save = disable_save
         self.quick_scan = quick_scan
@@ -77,7 +79,7 @@ class VarDatabase:
         with open(self.root_db_path, "w", encoding="UTF-8") as write_db_file:
             write_db_file.write(self.to_json())
 
-    def load(self):
+    def load(self) -> None:
         if not path.exists(self.root_db_path):
             self.add_files()
         else:
@@ -90,6 +92,24 @@ class VarDatabase:
                         self[var.var_id] = var
             except JSONDecodeError:
                 self.add_files()
+
+    def save_image_db(self) -> None:
+        print(f"Saving image database {self.image_db_path}")
+        if os.path.exists(self.image_db_path):
+            os.remove(self.image_db_path)
+        with zipfile.ZipFile(self.image_db_path, "w", zipfile.ZIP_STORED) as zip_file:
+            for item in self.image_files:
+                zip_file.write(item, os.path.relpath(item, self.image_db_local_path), compress_type=zipfile.ZIP_STORED)
+
+    def load_image_db(self) -> None:
+        files = self.directory_files
+        image_files = self.image_files
+        if len(files) != len(image_files):
+            if path.exists(self.image_db_path):
+                with zipfile.ZipFile(self.image_db_path) as zip_file:
+                    zip_file.extractall(self.image_db_local_path)
+            else:
+                os.makedirs(self.image_db_local_path, exist_ok=True)
 
     def _clear_cache(self):
         cached_properties = [
@@ -112,23 +132,24 @@ class VarDatabase:
     def root_db_path(self):
         return path.join(self.rootpath, self.root_db)
 
-    def list_directory(self, scan_path: str, image_lib=False):
+    @property
+    def image_db_path(self):
+        return path.join(self.rootpath, self.image_root_db)
+
+    @property
+    def image_db_local_path(self):
+        return path.join(self.image_root, IMAGE_LIB_DIR)
+
+    @cached_property
+    def directory_listing(self) -> dict[str, list]:
         dir_listing = {}
-        for (dirpath, _, filenames) in os.walk(scan_path):
-            if not image_lib and self.ignore_directory(dirpath) or len(filenames) == 0:
+        for (dirpath, _, filenames) in os.walk(self.rootpath):
+            if self.ignore_directory(dirpath) or len(filenames) == 0:
                 continue
             vars_in_filenames = [f for f in filenames if len(f) > 4 and f[-4:] == Ext.VAR]
             if len(vars_in_filenames) > 0:
                 dir_listing[dirpath] = vars_in_filenames
         return dir_listing
-
-    @cached_property
-    def directory_listing(self) -> dict[str, list]:
-        return self.list_directory(self.rootpath)
-
-    @property
-    def directory_count(self):
-        return sum(len(item) for _, item in self.directory_listing.items())
 
     @cached_property
     def directory_files(self) -> list[tuple[str, float, float]]:
@@ -143,6 +164,30 @@ class VarDatabase:
         ]
         files_with_stats = self.pool.map(get_file_stat, files)
         return files_with_stats
+
+    @property
+    def image_files(self) -> list[str]:
+        dir_listing = []
+        for (dirpath, _, filenames) in os.walk(self.image_db_local_path):
+            if IMAGE_LIB_DIR not in dirpath:
+                continue
+            dir_listing.extend([os.path.join(dirpath, f) for f in filenames if len(f) > 4 and f[-4:] == Ext.JPG])
+        return dir_listing
+
+    @property
+    def image_file_subdirs(self):
+        print("Scanning subdirectories")
+        os.makedirs(self.image_db_local_path, exist_ok=True)
+
+        dep = {}
+        for (dir_path, _, files) in os.walk(self.image_db_local_path):
+            for file in files:
+                dep[file.replace(Ext.JPG, Ext.EMPTY)] = path.relpath(dir_path, self.image_db_local_path)
+        return dep
+
+    @property
+    def directory_count(self):
+        return sum(len(item) for _, item in self.directory_listing.items())
 
     @cached_property
     def vars_directory_files(self) -> set[str]:
@@ -306,6 +351,19 @@ class VarDatabase:
     def ignore_directory(self, dirpath: str) -> bool:
         return IMAGE_LIB_DIR in dirpath or REPAIR_LIB_DIR in dirpath or "_ignore" in dirpath
 
+    def get_var_from_filepath(self, file_path: str, is_image: bool = False) -> Optional[VarObject]:
+        filename = path.basename(file_path)
+        filename_ext = path.splitext(filename)[-1]
+        if (filename_ext != Ext.VAR and not is_image) or (filename_ext != Ext.JPG and is_image):
+            return None
+        # If we find a temp var, we should destroy it
+        if filename == TEMP_VAR_NAME:
+            print(f"Removing temp var: {file_path}")
+            os.remove(file_path)
+            return None
+
+        return self.vars.get(filename.replace(Ext.VAR if not is_image else Ext.JPG, Ext.EMPTY))
+
     def update_var(self, file_path):
         try:
             var = VarObject(root_path=self.rootpath, file_path=file_path, quick_scan=self.quick_scan)
@@ -313,17 +371,27 @@ class VarDatabase:
         except (ValueError, KeyError, PermissionError, zipfile.BadZipfile) as err:
             print(f"ERROR :: Could not read {file_path} >> {err}")
 
-    def add_file(self, file_path, filemod=None, filesize=None) -> bool:
-        filename = path.basename(file_path)
-        filename_ext = path.splitext(filename)[-1]
-        if filename_ext != Ext.VAR:
-            return False
-        # If we find a temp var, we should destroy it
-        if filename == TEMP_VAR_NAME:
-            print(f"Removing temp var: {file_path}")
-            os.remove(file_path)
-            return False
-        var = self.vars.get(filename.replace(Ext.VAR, Ext.EMPTY))
+    def update_var_image(self, file_path: str) -> None:
+        var = self.get_var_from_filepath(file_path, is_image=True)
+        if var is not None:
+            local_image_name = path.join(self.image_db_local_path, var.sub_directory, f"{var.clean_name}{Ext.JPG}")
+            if path.exists(local_image_name):
+                return
+
+            image_data = var.extract_identity_image_data()
+            if image_data is not None:
+                os.makedirs(path.join(self.image_db_local_path, var.sub_directory), exist_ok=True)
+                image_data.save(local_image_name, format="JPEG")
+
+                # Set the date of the images to the dates of the vars
+                image_filedate = filedate.File(local_image_name)
+                image_filedate.set(
+                    created=str(datetime.fromtimestamp(var.info["created"])),
+                    modified=str(datetime.fromtimestamp(var.info["modified"])),
+                )
+
+    def add_file(self, file_path: str, filemod=None, filesize=None) -> bool:
+        var = self.get_var_from_filepath(file_path)
         if var is not None:
             if var.file_path != file_path:
                 print(f"Warning: {file_path} is a duplicate var")
@@ -359,10 +427,34 @@ class VarDatabase:
             return False
 
         if display:
-            for var in sorted(removed_files):
+            for var_path in sorted(removed_files):
+                var = self.get_var_from_filepath(var_path).var_id
                 print(f"Removing: {var}")
                 self.vars.pop(var)
         return True
+
+    def update_images(self) -> None:
+        print("Updating image lib... [Progress bar TBD]")
+        self.load_image_db()
+        required_image_files = set(path.join(v.sub_directory, f"{v.clean_name}{Ext.JPG}") for _, v in self.vars.items())
+        current_image_files = set(os.path.relpath(f, self.image_db_local_path) for f in self.image_files)
+        removed_files = current_image_files - required_image_files
+        added_files = required_image_files - current_image_files
+
+        for image_path in sorted(removed_files):
+            os.remove(os.path.join(self.image_db_local_path, image_path))
+
+        for image_path in sorted(added_files):
+            self.update_var_image(image_path)
+
+        if len(removed_files) > 0 or len(added_files) > 0 or not os.path.exists(self.image_db_path):
+            self.save_image_db()
+
+    def refresh_files(self) -> None:
+        self._clear_cache()
+        files_removed = self.remove_files()
+        self.add_files(files_removed=files_removed)
+        self.update_images()
 
     def get_var_ids_from_deps(self) -> set[str]:
         var_files = set()
@@ -437,11 +529,6 @@ class VarDatabase:
 
         if not self.disable_save:
             self.save()
-
-    def refresh_files(self) -> None:
-        self._clear_cache()
-        files_removed = self.remove_files()
-        self.add_files(files_removed=files_removed)
 
     def get_var_name(self, var_id, always=False) -> Optional[str]:
         try:

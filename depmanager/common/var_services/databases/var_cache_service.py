@@ -32,7 +32,7 @@ class VarCacheService:
     @property
     def remote_db(self) -> VarDatabase:
         if self.remote_db_cache is None:
-            self.remote_db_cache = VarDatabase(self.remote_path)
+            self.remote_db_cache = VarDatabase(self.remote_path, image_root=self.local_path)
         return self.remote_db_cache
 
     @property

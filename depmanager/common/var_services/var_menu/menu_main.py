@@ -2,7 +2,6 @@ import os
 import zipfile
 
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
-from depmanager.common.var_services.databases.image_lib_database import ImageLibDatabase
 from depmanager.common.var_services.var_menu.base_actions_menu import BaseActionsMenu
 from depmanager.common.var_services.var_menu.menu_maintenance import MenuMaintenance
 
@@ -32,10 +31,6 @@ class MenuMain(BaseActionsMenu):
 
     def refresh_full(self):
         self.cache.remote_db.refresh_files()
-        image_db = ImageLibDatabase(self.cache.remote_db, self.cache.local_path)
-        image_db.load()
-        missing_vars = image_db.update(save_after_update=True)
-        self.cache.remote_db.display_var_list(missing_vars, "Missing Images")
         self.cache.clear()
         self.cache.auto_check_remote_files_health()
 
@@ -46,9 +41,6 @@ class MenuMain(BaseActionsMenu):
     def organize_local_to_remote(self):
         filters = self.get_var_filters()
         self.cache.auto_organize_local_files_to_remote(filters=filters)
-        image_db = ImageLibDatabase(self.cache.remote_db, self.cache.local_path)
-        image_db.load()
-        image_db.update(save_after_update=True)
         self.cache.clear()
 
     def backup_custom(self):
@@ -92,12 +84,8 @@ class MenuMain(BaseActionsMenu):
 
     def organize_with_image_lib(self):
         self.cache.remote_db.refresh_files()
-        image_db = ImageLibDatabase(self.cache.remote_db, self.cache.local_path)
-        image_db.load()
-        missing_vars = image_db.update()
-        self.cache.remote_db.display_var_list(missing_vars, "Missing Images")
         input("Press ENTER when you are finished organizing the image_lib...")
-        image_lib_sub_directories = image_db.get_sub_directories_from_database()
+        image_lib_sub_directories = self.cache.remote_db.image_file_subdirs
 
         # Move vars to new subdirectories
         for var_id, var_item in self.cache.remote_db.vars.items():
@@ -118,4 +106,4 @@ class MenuMain(BaseActionsMenu):
                 )
 
         self.cache.remote_db.save()
-        image_db.save()
+        self.cache.remote_db.save_image_db()
