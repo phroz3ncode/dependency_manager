@@ -58,8 +58,8 @@ class VarParser:
             return line
 
         # If we have multiple matches, idk, something is really seriously wrong with the logic or var
-        if len(replacement_matches) > 1:
-            raise ValueError("Duplicate matches detected for replacement! Something went really wrong :(")
+        # if len(replacement_matches) > 1:
+        #     raise ValueError("Duplicate matches detected for replacement! Something went really wrong :(")
 
         # Perform an in-line repair if possible
         original_value = replacement_matches[0]

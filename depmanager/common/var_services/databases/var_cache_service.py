@@ -32,7 +32,8 @@ class VarCacheService:
     @property
     def remote_db(self) -> VarDatabase:
         if self.remote_db_cache is None:
-            self.remote_db_cache = VarDatabase(self.remote_path, image_root=self.local_path)
+            self.remote_db_cache = VarDatabase(self.remote_path, image_root=self.remote_path)
+            # self.remote_db_cache = VarDatabase(self.remote_path, image_root=self.local_path)
         return self.remote_db_cache
 
     @property
@@ -237,7 +238,7 @@ class VarCacheService:
             return
 
         self.clear()
-        self.remote_db.refresh_files()
+        self.remote_db.refresh()
         new_var_ids = self.local_db.keys - self.remote_db.keys
 
         if filters is not None:
@@ -282,7 +283,7 @@ class VarCacheService:
             self.remote_db.add_file(os.path.join(self.remote_db.rootpath, var.sub_directory, var.filename))
         self.auto_organize_remote_files()
         self.remote_db.save()
-        self.remote_db.refresh_files()
+        self.remote_db.refresh()
 
     def fix_local_missing(self):
         if self.invalid_local:

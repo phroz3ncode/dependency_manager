@@ -30,8 +30,7 @@ class MenuMain(BaseActionsMenu):
         )
 
     def refresh_full(self):
-        self.cache.remote_db.refresh_files()
-        self.cache.clear()
+        self.cache.remote_db.refresh()
         self.cache.auto_check_remote_files_health()
 
     def fix_local_missing(self):
@@ -83,7 +82,7 @@ class MenuMain(BaseActionsMenu):
                 zf_dest.write(item, os.path.relpath(item, zip_root_path), compress_type=zipfile.ZIP_DEFLATED)
 
     def organize_with_image_lib(self):
-        self.cache.remote_db.refresh_files()
+        self.cache.remote_db.refresh()
         input("Press ENTER when you are finished organizing the image_lib...")
         image_lib_sub_directories = self.cache.remote_db.image_file_subdirs
 

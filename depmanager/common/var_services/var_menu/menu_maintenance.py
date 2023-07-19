@@ -4,7 +4,6 @@ from depmanager.common.shared.console_menu_item import ConsoleMenuItem
 from depmanager.common.shared.enums import MEGABYTE
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
-from depmanager.common.var_services.databases.image_lib_database import ImageLibDatabase
 from depmanager.common.var_services.enums import TEMP_REPAIR_DIR
 from depmanager.common.var_services.enums import OrganizeMethods
 from depmanager.common.var_services.var_menu.base_actions_menu import BaseActionsMenu
@@ -20,6 +19,7 @@ class MenuMaintenance(BaseActionsMenu):
                 ConsoleMenuItem("REPAIR - Find and repair broken vars", self.find_and_repair),
                 ConsoleMenuItem("REPAIR - Find and optimize var dependencies", self.find_and_optimize),
                 ConsoleMenuItem("REPAIR - Compress vars images [SLOW]", self.compress_local),
+                ConsoleMenuItem("REPAIR - Find and compress vars images", self.find_and_compress),
                 ConsoleMenuItem("FIND what uses var", self.search_that_use),
                 ConsoleMenuItem("FIND low value vars", self.search_low_value),
                 ConsoleMenuItem("TAG unused vars", self.add_unused_var_tags),
@@ -34,11 +34,6 @@ class MenuMaintenance(BaseActionsMenu):
     def organize_remote(self):
         self.cache.auto_organize_remote_files()
 
-    def refresh_image_lib(self):
-        image_db = ImageLibDatabase(self.cache.remote_db, self.cache.local_path)
-        missing_vars = image_db.update(save_after_update=True)
-        self.cache.remote_db.display_var_list(missing_vars, "Missing Images")
-
     def check_remote_health(self):
         self.cache.clear()
         self.cache.auto_check_remote_files_health()
@@ -49,9 +44,16 @@ class MenuMaintenance(BaseActionsMenu):
 
     def compress_local(self):
         self.cache.clear()
-        filters = self.get_var_filters()
-        self.cache.compress_local(filters)
-        self.cache.clear()
+        print("Please place all vars to optimize inside a 'repair' folder at the root...")
+        repairable_var_ids = [
+            k for k, value in self.cache.local_db.vars.items() if TEMP_REPAIR_DIR in value.sub_directory
+        ]
+        for var_id in repairable_var_ids:
+            var = self.cache.local_db[var_id]
+            var.compress()
+        # filters = self.get_var_filters()
+        # self.cache.compress_local(filters)
+        # self.cache.clear()
 
     def _copy_var_list_to_local(self, var_list, sub_dir):
         if len(var_list) == 0:
@@ -76,7 +78,7 @@ class MenuMaintenance(BaseActionsMenu):
     def _get_filters(self):
         filters = self.get_var_filters()
         self.cache.clear()
-        self.cache.remote_db.refresh_files()
+        self.cache.remote_db.refresh()
         return filters
 
     def find_and_optimize(self):
@@ -104,6 +106,20 @@ class MenuMaintenance(BaseActionsMenu):
         ]
         for var_id in repairable_var_ids:
             self.cache.remote_db.repair_broken_var(self.cache.local_db[var_id], remove_skip=True)
+
+    def find_and_compress(self):
+        filters = self._get_filters()
+        var_to_process = self.cache.remote_db.find_oversize_vars()
+        var_to_process = self._filter_var_list(var_to_process, filters)
+        self._copy_var_list_to_local(var_to_process, TEMP_REPAIR_DIR)
+        self.cache.local_db_cache = None
+        print("Please place all vars to optimize inside a 'repair' folder at the root...")
+        repairable_var_ids = [
+            k for k, value in self.cache.local_db.vars.items() if TEMP_REPAIR_DIR in value.sub_directory
+        ]
+        for var_id in repairable_var_ids:
+            var = self.cache.local_db[var_id]
+            var.compress()
 
     def search_that_use(self):
         var_name = input("Name: ").strip()
@@ -149,8 +165,7 @@ class MenuMaintenance(BaseActionsMenu):
         self.cache.organize_remote_files(mode=OrganizeMethods.SUFFIX_DEP, filters=filters)
 
     def build_dep_from_image_lib(self):
-        image_db = ImageLibDatabase(self.cache.remote_db, self.cache.local_path)
-        image_db.build_dep_from_database()
+        self.cache.remote_db.save_image_db_as_dep()
 
     def tag_unused_remove(self):
         filters = self.get_var_filters()

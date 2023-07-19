@@ -76,4 +76,4 @@ def are_substrings_in_str(str_a: str, str_list: list[str], ignore_case: bool = T
 
 def get_file_stat(file_path) -> tuple[str, float, float]:
     stats = os.stat(file_path)
-    return (file_path, stats.st_mtime, stats.st_size)
+    return file_path, stats.st_mtime, stats.st_size

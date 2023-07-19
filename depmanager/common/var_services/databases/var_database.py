@@ -1,204 +1,37 @@
 import io
-import itertools
 import json
 import os
-import shutil
 import zipfile
 from collections import defaultdict
-from datetime import datetime
 from json import JSONDecodeError
-from multiprocessing import Pool
 from os import path
-from typing import Optional
 
-import filedate
 from orjson import orjson
 
 from depmanager.common.shared.cached_property import cached_property
+from depmanager.common.shared.enums import MEGABYTE
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import find_fuzzy_file_match
-from depmanager.common.shared.tools import get_file_stat
 from depmanager.common.shared.tools import select_fuzzy_match
+from depmanager.common.var_services.databases.var_database_image_db import VarDatabaseImageDB
 from depmanager.common.var_services.entities.var_object import VarObject
 from depmanager.common.var_services.enums import BACKWARDS_COMPAT_PLUGIN_AUTHORS
-from depmanager.common.var_services.enums import IMAGE_LIB_DIR
-from depmanager.common.var_services.enums import REPAIR_LIB_DIR
 from depmanager.common.var_services.enums import TEMP_VAR_NAME
 from depmanager.common.var_services.enums import Ext
 from depmanager.common.var_services.utils.var_parser import VarParser
 from depmanager.common.var_services.utils.var_type import VarType
 
 
-class VarDatabase:
-    INCLUDE_LIST = ["var"]
-    EXCLUDE_LIST = ["disabled"]
-    APPEARANCE_LIST = ["json", "vap"]
-
-    rootpath: str
-    root_db: str
-    vars: dict[str, VarObject]
-    disable_save: bool
-
-    # pylint: disable=redefined-builtin
-    def __init__(self, root: str = None, image_root: str = None, disable_save: bool = False, quick_scan: bool = False):
-        self.pool = Pool()  # pylint: disable=consider-using-with
-        self.rootpath = root
-        self.root_db = "remote_db.json"
-        self.image_root = image_root
-        self.image_root_db = "image_lib.zip"
-        self.vars = {}
-        self.disable_save = disable_save
-        self.quick_scan = quick_scan
-
-        self.load()
-
-    def __len__(self):
-        return len(self.vars)
-
-    def __getitem__(self, item):
-        return self.vars.get(item)
-
-    def __setitem__(self, key, value):
-        self.vars[key] = value
-
-    @property
-    def keys(self):
-        return set(self.vars.keys())
-
-    @property
-    def image_db_enabled(self) -> bool:
-        return self.image_root is not None
-
-    def to_json(self) -> str:
-        return orjson.dumps(
-            {"rootpath": self.rootpath, "vars": [v.to_dict() for _, v in self.vars.items()]}, option=orjson.OPT_INDENT_2
-        ).decode("UTF-8")
-
-    def save(self) -> None:
-        print(f"Saving database {self.root_db_path}")
-        with open(self.root_db_path, "w", encoding="UTF-8") as write_db_file:
-            write_db_file.write(self.to_json())
-
-    def load(self) -> None:
-        if not path.exists(self.root_db_path):
-            self.add_files()
-        else:
-            try:
-                print(f"Loading default database {self.root_db_path}")
-                with open(self.root_db_path, "r", encoding="UTF-8") as read_db_file:
-                    data = json.load(read_db_file)
-                    for item in data["vars"]:
-                        var = VarObject.from_dict(data=item, root_path=self.rootpath)
-                        self[var.var_id] = var
-            except JSONDecodeError:
-                self.add_files()
-
-    def save_image_db(self) -> None:
-        print(f"Saving image database {self.image_db_path}")
-        if os.path.exists(self.image_db_path):
-            os.remove(self.image_db_path)
-        with zipfile.ZipFile(self.image_db_path, "w", zipfile.ZIP_STORED) as zip_file:
-            for item in self.image_files:
-                zip_file.write(item, os.path.relpath(item, self.image_db_local_path), compress_type=zipfile.ZIP_STORED)
-
-    def load_image_db(self) -> None:
-        files = self.directory_files
-        image_files = self.image_files
-        if len(files) != len(image_files):
-            if path.exists(self.image_db_path):
-                with zipfile.ZipFile(self.image_db_path) as zip_file:
-                    zip_file.extractall(self.image_db_local_path)
-            else:
-                os.makedirs(self.image_db_local_path, exist_ok=True)
-
-    def _clear_cache(self):
-        cached_properties = [
-            "directory_count",
-            "directory_listing",
-            "directory_files",
-            "vars_directory_files",
-            "vars_versions",
-            "vars_required",
-            "repair_index",
-            "required_dependencies",
-        ]
-        for property in cached_properties:
-            try:
-                delattr(self, property)
-            except AttributeError:
-                continue
-
-    @property
-    def root_db_path(self):
-        return path.join(self.rootpath, self.root_db)
-
-    @property
-    def image_db_path(self):
-        return path.join(self.rootpath, self.image_root_db)
-
-    @property
-    def image_db_local_path(self):
-        return path.join(self.image_root, IMAGE_LIB_DIR)
-
-    @cached_property
-    def directory_listing(self) -> dict[str, list]:
-        dir_listing = {}
-        for (dirpath, _, filenames) in os.walk(self.rootpath):
-            if self.ignore_directory(dirpath) or len(filenames) == 0:
-                continue
-            vars_in_filenames = [f for f in filenames if len(f) > 4 and f[-4:] == Ext.VAR]
-            if len(vars_in_filenames) > 0:
-                dir_listing[dirpath] = vars_in_filenames
-        return dir_listing
-
-    @cached_property
-    def directory_files(self) -> list[tuple[str, float, float]]:
-        print("Parallel scanning directories...")
-        files = [
-            os.path.join(f[1], f[0])
-            for f in list(
-                itertools.chain.from_iterable(
-                    itertools.product(files, [key]) for key, files in self.directory_listing.items()
-                )
-            )
-        ]
-        files_with_stats = self.pool.map(get_file_stat, files)
-        return files_with_stats
-
-    @property
-    def image_files(self) -> list[str]:
-        dir_listing = []
-        for (dirpath, _, filenames) in os.walk(self.image_db_local_path):
-            if IMAGE_LIB_DIR not in dirpath:
-                continue
-            dir_listing.extend([os.path.join(dirpath, f) for f in filenames if len(f) > 4 and f[-4:] == Ext.JPG])
-        return dir_listing
-
-    @property
-    def image_file_subdirs(self):
-        print("Scanning subdirectories")
-        os.makedirs(self.image_db_local_path, exist_ok=True)
-
-        dep = {}
-        for (dir_path, _, files) in os.walk(self.image_db_local_path):
-            for file in files:
-                dep[file.replace(Ext.JPG, Ext.EMPTY)] = path.relpath(dir_path, self.image_db_local_path)
-        return dep
-
-    @property
-    def directory_count(self):
-        return sum(len(item) for _, item in self.directory_listing.items())
-
-    @cached_property
-    def vars_directory_files(self) -> set[str]:
-        return set(v.file_path for _, v in self.vars.items())
-
-    @cached_property
-    def vars_versions(self) -> defaultdict[str, set]:
-        versions = defaultdict(set)
-        for _, var in self.vars.items():
-            versions[var.duplicate_id].add(var.version)
-        return versions
+class VarDatabase(VarDatabaseImageDB):
+    def _clear_cache(self, cached_attribs=None):
+        self._clear_attributes(
+            [
+                "vars_required",
+                "required_dependencies",
+                "repair_index",
+            ]
+        )
+        super()._clear_cache()
 
     @cached_property
     def vars_required(self) -> defaultdict[str, list]:
@@ -212,75 +45,14 @@ class VarDatabase:
         return required
 
     @cached_property
-    def reference_file_uses(self) -> list[tuple[str, int]]:
-        refs = defaultdict(int)
-        for var_id in self.keys:
-            for package, package_path in self[var_id].used_packages_as_list:
-                if package in ("SELF", "SELF_UNREF"):
-                    continue
-                refs[f"{package}:::{package_path}"] += 1
-        return list(sorted(refs.items(), key=lambda item: item[1], reverse=True))
-
-    @cached_property
-    def reference_package_uses(self) -> list[tuple[str, int]]:
-        refs = defaultdict(int)
-        for package, uses in self.reference_file_uses:
-            refs[package.split(":::")[0]] += uses
-        return list(sorted(refs.items(), key=lambda item: item[1], reverse=True))
-
-    @cached_property
-    def reference_author_uses(self) -> list[tuple[str, int]]:
-        refs = defaultdict(int)
-        for package, uses in self.reference_file_uses:
-            refs[package.split(".")[0]] += uses
-        return list(sorted(refs.items(), key=lambda item: item[1], reverse=True))
-
-    @cached_property
-    # pylint: disable=consider-using-dict-items
-    def repair_index(self) -> list[tuple[str, str, str]]:
-        """Builds a repair index
-
-        We sort by the following:
-            - VarType.REFERENCE_PRIORITY (this is how likely the item is to be a base reference, not part of a scene)
-            - Is the item used as a reference by other vars? If so it is preferred to an unused item
-            - Name of the var (if the name is a well known resource maker, we append a . to bubble them to the top)
-            - Version (we prioritize newer versions over old versions, so the sort version is 10000 - version)
-
-        After sorting we unpack all the items and quickly convert them to lowercase for searching later on.
-        """
-        max_top_refs = 50
-        top_references = [x for x, _ in self.reference_author_uses][:max_top_refs]
-
-        indexes = []
-        for var_id in self.keys:
-            # Define the methods we will sort on
-            priority_sort = self[var_id].var_type.reference_priority
-            used_sort = 0 if var_id in self.vars_required.keys() else 1
-            try:
-                top_sort = top_references.index(self[var_id].author)
-            except ValueError:
-                top_sort = max_top_refs + 1
-            name_sort = self[var_id].duplicate_id
-            version_sort = 10000 - self[var_id].version
-
-            # Add the list of files along with the sort ordering
-            indexes.append((priority_sort, used_sort, top_sort, name_sort, version_sort, self[var_id].includes_as_list))
-
-        # Sort based on the initial keys
-        indexes.sort(key=lambda x: (x[0], x[1], x[2], x[3], x[4]))
-
-        # Extract the includes only and convert to lower, drop the sort keys
-        return [(item[0], item[1], item[2]) for sublist in indexes for item in sublist[5]]
-
-    @cached_property
     def required_dependencies(self) -> defaultdict[str, set]:
         """Logic to retrieve all required dependencies"""
         required = defaultdict(set)
-        progress = ProgressBar(len(self.vars), description="Building dependency map")
+        # progress = ProgressBar(len(self.vars), description="Building dependency map")
         # Using .items negates the cached_property benefits
         # pylint: disable=consider-using-dict-items
         for var_id in self.vars:
-            progress.inc()
+            # progress.inc()
 
             # Quick scan databases do not scan every file to build a complete used_dependencies entity
             # The listed dependencies may or may not be accurate, but without a full scan this cannot
@@ -320,7 +92,7 @@ class VarDatabase:
 
         return required
 
-    @cached_property
+    @property
     def unique_required_dependencies(self) -> set[str]:
         unique_dependencies = set()
         for var_id, var_required_dependencies in self.required_dependencies.items():
@@ -329,7 +101,24 @@ class VarDatabase:
                 unique_dependencies.add(dependency)
         return unique_dependencies
 
-    @cached_property
+    @property
+    def reference_file_uses(self) -> list[tuple[str, int]]:
+        refs = defaultdict(int)
+        for var_id in self.keys:
+            for package, package_path in self[var_id].used_packages_as_list:
+                if package in ("SELF", "SELF_UNREF"):
+                    continue
+                refs[f"{package}:::{package_path}"] += 1
+        return list(sorted(refs.items(), key=lambda item: item[1], reverse=True))
+
+    @property
+    def reference_author_uses(self) -> list[tuple[str, int]]:
+        refs = defaultdict(int)
+        for package, uses in self.reference_file_uses:
+            refs[package.split(".")[0]] += uses
+        return list(sorted(refs.items(), key=lambda item: item[1], reverse=True))
+
+    @property
     def unique_referenced_dependencies(self) -> set[str]:
         unique_referenced = set()
         for _, var_required_dependencies in self.required_dependencies.items():
@@ -339,122 +128,53 @@ class VarDatabase:
                     unique_referenced.add(var_name)
         return unique_referenced
 
-    def dedupe_dependency_list(self, dependencies: set[str]) -> set[str]:
-        # If an exact version is needed, we only need the exact reference, it will double as latest
-        duplicates = set()
-        for dependency in dependencies:
-            if ".latest" not in dependency:
-                if self.get_var_name_as_latest(dependency) in dependencies:
-                    duplicates.add(self.get_var_name_as_latest(dependency))
-        return dependencies - duplicates
+    @cached_property
+    # pylint: disable=consider-using-dict-items
+    def repair_index(self) -> list[tuple[str, str, str]]:
+        """Builds a repair index
 
-    def ignore_directory(self, dirpath: str) -> bool:
-        return IMAGE_LIB_DIR in dirpath or REPAIR_LIB_DIR in dirpath or "_ignore" in dirpath
+        We sort by the following:
+            - VarType.REFERENCE_PRIORITY (this is how likely the item is to be a base reference, not part of a scene)
+            - Is the item used as a reference by other vars? If so it is preferred to an unused item
+            - Name of the var (if the name is a well known resource maker, we append a . to bubble them to the top)
+            - Version (we prioritize newer versions over old versions, so the sort version is 10000 - version)
 
-    def get_var_from_filepath(self, file_path: str, is_image: bool = False) -> Optional[VarObject]:
-        filename = path.basename(file_path)
-        filename_ext = path.splitext(filename)[-1]
-        if (filename_ext != Ext.VAR and not is_image) or (filename_ext != Ext.JPG and is_image):
-            return None
-        # If we find a temp var, we should destroy it
-        if filename == TEMP_VAR_NAME:
-            print(f"Removing temp var: {file_path}")
-            os.remove(file_path)
-            return None
+        After sorting we unpack all the items and quickly convert them to lowercase for searching later on.
+        """
+        max_top_refs = 50
+        top_references = [x for x, _ in self.reference_author_uses][:max_top_refs]
 
-        return self.vars.get(filename.replace(Ext.VAR if not is_image else Ext.JPG, Ext.EMPTY))
+        indexes = []
+        for var_id in self.keys:
+            # Define the methods we will sort on
+            priority_sort = self[var_id].var_type.reference_priority
+            used_sort = 0 if var_id in self.vars_required.keys() else 1
+            try:
+                top_sort = top_references.index(self[var_id].author)
+            except ValueError:
+                top_sort = max_top_refs + 1
+            name_sort = self[var_id].duplicate_id
+            version_sort = 10000 - self[var_id].version
 
-    def update_var(self, file_path):
-        try:
-            var = VarObject(root_path=self.rootpath, file_path=file_path, quick_scan=self.quick_scan)
-            self[var.var_id] = var
-        except (ValueError, KeyError, PermissionError, zipfile.BadZipfile) as err:
-            print(f"ERROR :: Could not read {file_path} >> {err}")
+            # Add the list of files along with the sort ordering
+            indexes.append((priority_sort, used_sort, top_sort, name_sort, version_sort, self[var_id].includes_as_list))
 
-    def update_var_image(self, file_path: str) -> None:
-        var = self.get_var_from_filepath(file_path, is_image=True)
-        if var is not None:
-            local_image_name = path.join(self.image_db_local_path, var.sub_directory, f"{var.clean_name}{Ext.JPG}")
-            if path.exists(local_image_name):
-                return
+        # Sort based on the initial keys
+        indexes.sort(key=lambda x: (x[0], x[1], x[2], x[3], x[4]))
 
-            image_data = var.extract_identity_image_data()
-            if image_data is not None:
-                os.makedirs(path.join(self.image_db_local_path, var.sub_directory), exist_ok=True)
-                image_data.save(local_image_name, format="JPEG")
+        # Extract the includes only and convert to lower, drop the sort keys
+        return [(item[0], item[1], item[2]) for sublist in indexes for item in sublist[5]]
 
-                # Set the date of the images to the dates of the vars
-                image_filedate = filedate.File(local_image_name)
-                image_filedate.set(
-                    created=str(datetime.fromtimestamp(var.info["created"])),
-                    modified=str(datetime.fromtimestamp(var.info["modified"])),
-                )
-
-    def add_file(self, file_path: str, filemod=None, filesize=None) -> bool:
-        var = self.get_var_from_filepath(file_path)
-        if var is not None:
-            if var.file_path != file_path:
-                print(f"Warning: {file_path} is a duplicate var")
-                return False
-            if (filemod != var.modified and filesize != var.size) or (
-                (filemod is None or filesize is None) and var.updated
-            ):
-                print(f"Updating: {var.var_id}")
-                self.update_var(file_path)
-                return True
-            return False
-
-        self.update_var(file_path)
-        return True
-
-    def add_files(self, files_removed=False) -> None:
-        new_files_added = False
-        progress = ProgressBar(self.directory_count, description="Scanning vars")
-        for filepath, filemod, filesize in self.directory_files:
-            progress.inc()
-            file_added = self.add_file(filepath, filemod, filesize)
-            if file_added:
-                new_files_added = True
-        if not self.disable_save and (new_files_added or files_removed):
-            self.save()
-
-    def remove_files(self, display=True) -> bool:
-        files = self.directory_files
-        present_files = set(f[0] for f in files)
-        current_var_files = self.vars_directory_files
-        removed_files = current_var_files - present_files
-        if len(removed_files) == 0:
-            return False
-
-        if display:
-            for var_path in sorted(removed_files):
-                var = self.get_var_from_filepath(var_path).var_id
-                print(f"Removing: {var}")
-                self.vars.pop(var)
-        return True
-
-    def update_images(self) -> None:
-        print("Updating image lib... [Progress bar TBD]")
-        self.load_image_db()
-        required_image_files = set(path.join(v.sub_directory, f"{v.clean_name}{Ext.JPG}") for _, v in self.vars.items())
-        current_image_files = set(os.path.relpath(f, self.image_db_local_path) for f in self.image_files)
-        removed_files = current_image_files - required_image_files
-        added_files = required_image_files - current_image_files
-
-        for image_path in sorted(removed_files):
-            os.remove(os.path.join(self.image_db_local_path, image_path))
-
-        for image_path in sorted(added_files):
-            self.update_var_image(image_path)
-
-        if len(removed_files) > 0 or len(added_files) > 0 or not os.path.exists(self.image_db_path):
-            self.save_image_db()
-
-    def refresh_files(self) -> None:
-        self._clear_cache()
-        files_removed = self.remove_files()
-        self.add_files(files_removed=files_removed)
-        self.update_images()
+    def display_var_list(self, var_id_list, prefix, show_used_by=False) -> None:
+        if len(var_id_list) > 0:
+            for var in sorted(var_id_list):
+                if show_used_by:
+                    used_by = self.vars_required.get(var)
+                    print(f"{prefix} var detected: {var} - {used_by}")
+                else:
+                    print(f"{prefix} var detected: {var}")
+        else:
+            print(f"No {prefix.lower()} vars detected.")
 
     def get_var_ids_from_deps(self) -> set[str]:
         var_files = set()
@@ -468,89 +188,6 @@ class VarDatabase:
                         var_files.update(lines)
         return var_files
 
-    def manipulate_file(self, var_id, dest_dir, move=False, symlink=False) -> None:
-        os.makedirs(dest_dir, exist_ok=True)
-
-        var = self[var_id]
-        src_path = var.file_path
-        dest_path = path.join(dest_dir, var.filename)
-
-        if not path.isfile(src_path):
-            print(f"Var not found on disk: {var_id} [Please refresh remote or local database]")
-        if move:
-            os.rename(src_path, dest_path)
-            self[var.var_id] = self[var.var_id].from_new_path(self.rootpath, dest_path)
-        elif symlink and var.prefer_symlink:
-            if not path.isfile(dest_path):
-                try:
-                    os.symlink(src_path, dest_path)
-                except WindowsError:
-                    shutil.copy2(src_path, dest_path)
-        else:
-            if not path.isfile(dest_path):
-                shutil.copy2(src_path, dest_path)
-
-    def manipulate_file_list(self, var_id_list, sub_directory, append=False, remove=False, suffix=False) -> None:
-        if len(var_id_list) == 0:
-            return
-
-        progress = ProgressBar(len(var_id_list), "Moving/Copying vars")
-        for var_id in var_id_list:
-            progress.inc()
-            var = self[var_id]
-
-            var_sub_directory = None
-            # Use preferred sub_directory
-            if sub_directory == "AUTO":
-                if var.incorrect_subdirectory:
-                    var_sub_directory = var.preferred_subdirectory
-            # Add sub_directory to the current sub_directory if not present
-            elif append:
-                if sub_directory not in var.sub_directory:
-                    var_sub_directory = f"{sub_directory}{var.sub_directory}"
-            elif suffix:
-                if sub_directory not in var.sub_directory:
-                    var_sub_directory = f"{var.sub_directory}_{sub_directory}"
-            # Remove sub_directory from the current sub_directory if present
-            elif remove:
-                if sub_directory in var.sub_directory:
-                    var_sub_directory = var.sub_directory.replace(sub_directory, Ext.EMPTY)
-            # Move to a specific sub_directory
-            else:
-                if sub_directory != var.sub_directory:
-                    var_sub_directory = sub_directory
-
-            if var_sub_directory is not None:
-                self.manipulate_file(
-                    var.var_id,
-                    path.join(var.root_path, var_sub_directory),
-                    move=True,
-                )
-
-        if not self.disable_save:
-            self.save()
-
-    def get_var_name(self, var_id, always=False) -> Optional[str]:
-        try:
-            author, name, version = var_id.split(".")
-        except ValueError:
-            if always:
-                return var_id
-            return None
-        if version == "latest":
-            # noinspection PyTypeChecker
-            versions = self.vars_versions[f"{author}.{name}"]
-            if len(versions) == 0:
-                if always:
-                    return var_id
-                return None
-            var_id = f"{author}.{name}.{max(versions)}"
-        if var_id not in self.vars:
-            if always:
-                return var_id
-            return None
-        return var_id
-
     def get_dependencies_list_as_dict(self, dependency_list):
         dependencies = {}
         for dependency in sorted(dependency_list):
@@ -563,26 +200,11 @@ class VarDatabase:
             }
         return dependencies
 
-    @staticmethod
-    def get_var_name_as_latest(var_id):
-        return f"{'.'.join(var_id.split('.')[:-1])}.latest"
-
-    def display_var_list(self, var_id_list, prefix, show_used_by=False) -> None:
-        if len(var_id_list) > 0:
-            for var in sorted(var_id_list):
-                if show_used_by:
-                    used_by = self.vars_required.get(var)
-                    print(f"{prefix} var detected: {var} - {used_by}")
-                else:
-                    print(f"{prefix} var detected: {var}")
-        else:
-            print(f"No {prefix.lower()} vars detected.")
-
     def find_unversioned_duplicates(self) -> set[str]:
         unversioned_duplicates = set()
-        progress = ProgressBar(len(self.vars_versions.keys()), "Searching for unversioned duplicates")
+        # progress = ProgressBar(len(self.vars_versions.keys()), "Searching for unversioned duplicates")
         for var_name, versions in self.vars_versions.items():
-            progress.inc()
+            # progress.inc()
             if len(versions) <= 1:
                 continue
 
@@ -599,9 +221,9 @@ class VarDatabase:
 
     def find_missing_vars(self) -> set[str]:
         missing_vars = set()
-        progress = ProgressBar(len(self.keys), "Searching for missing vars")
+        # progress = ProgressBar(len(self.keys), "Searching for missing vars")
         for var_id in self.unique_required_dependencies:
-            progress.inc()
+            # progress.inc()
             if self.get_var_name(var_id) is None:
                 missing_vars.add(var_id)
         return missing_vars
@@ -610,9 +232,9 @@ class VarDatabase:
         required_dep_vars = self.get_var_ids_from_deps()
 
         missing_vars = set()
-        progress = ProgressBar(len(required_dep_vars), "Searching for missing .dep vars")
+        # progress = ProgressBar(len(required_dep_vars), "Searching for missing .dep vars")
         for var in required_dep_vars:
-            progress.inc()
+            # progress.inc()
             var_name = self.get_var_name(var)
             if var_name is None:
                 missing_vars.add(var)
@@ -669,9 +291,9 @@ class VarDatabase:
 
     def find_unoptimized_vars(self):
         var_list = set()
-        progress = ProgressBar(len(self.keys), description="Searching unoptimized vars")
+        # progress = ProgressBar(len(self.keys), description="Searching unoptimized vars")
         for var_id, var in self.vars.items():
-            progress.inc()
+            # progress.inc()
             # This is a big change not made lightly. Ultimately if a single var tracks every change to all
             # downstream vars, when you have a ".latest" var that gets updated and adds or upgrades a new
             # dependency this can result in a MASSIVE need for downstream updates to fix all the metadata.
@@ -729,6 +351,24 @@ class VarDatabase:
             if len(replacement_mappings) > 0:
                 var_list.add(var_id)
                 track.update(replacement_mappings)
+        return var_list
+
+    def find_oversize_vars(self):
+        var_list = set()
+        progress = ProgressBar(len(self.keys), description=f"Searching oversize vars")
+        for var_id in self.keys:
+            progress.inc()
+            images_list = [
+                filename
+                for filename, size in self[var_id].infolist
+                if (
+                       (os.path.splitext(filename)[1] == Ext.TIF and size > (8 * MEGABYTE)) or
+                       (os.path.splitext(filename)[1] == Ext.PNG and size > (8 * MEGABYTE)) or
+                       (os.path.splitext(filename)[1] == Ext.JPG and size > (12 * MEGABYTE))
+                )
+            ]
+            if len(images_list) > 0:
+                var_list.add(var_id)
         return var_list
 
     def find_replacement_from_repair_index(self, filepath: str, exact_only=False):
@@ -831,12 +471,12 @@ class VarDatabase:
     def optimize_multiple_versions(self, mappings, mapping_versions):
         def replace_mapping(mappings, package, version):
             new_mappings = set()
-            for map in mappings:
-                if map[1] != package:
-                    new_mappings.add(map)
+            for mapping in mappings:
+                if mapping[1] != package:
+                    new_mappings.add(mapping)
                     continue
-                replace_key = f"{map[1]}.{map[2]}:/{map[3]}" if map[0] is None else map[0]
-                new_mappings.add((replace_key, map[1], version, map[3]))
+                replace_key = f"{mapping[1]}.{mapping[2]}:/{mapping[3]}" if mapping[0] is None else mapping[0]
+                new_mappings.add((replace_key, mapping[1], version, mapping[3]))
             return new_mappings
 
         # The package is currently referencing > 1 version. If possible this should be reduced to a single version

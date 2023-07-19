@@ -7,6 +7,7 @@ from typing import Optional
 from zipfile import ZIP_DEFLATED
 from zipfile import ZipFile
 
+import imagequant as imagequant
 import PIL
 from PIL import Image
 from PIL import UnidentifiedImageError
@@ -14,6 +15,7 @@ from PIL import UnidentifiedImageError
 from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.enums import MEGABYTE
 from depmanager.common.shared.progress_bar import ProgressBar
+from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.var_services.enums import IMAGE_LIB_DIR
 from depmanager.common.var_services.enums import TEMP_VAR_NAME
 from depmanager.common.var_services.enums import Ext
@@ -25,9 +27,9 @@ PIL.Image.MAX_IMAGE_PIXELS = 225000000
 
 def _downsample_image_if_possible(img: Image, allow_4k_scaling=False) -> tuple[Image, bool]:
     desired = None
-    if img.height >= 8000 and img.width >= 8000:
+    if img.height > 4096 and img.width > 4096:
         desired = (4096, 4096)
-    elif allow_4k_scaling and img.height >= 4000 and img.width >= 4000:
+    if allow_4k_scaling and img.height >= 4000 and img.width >= 4000:
         desired = (2048, 2048)
 
     if desired:
@@ -48,6 +50,8 @@ class VarObjectImageLib:
     namelist: list[str]
     infolist: list[tuple[str, int]]
     files: defaultdict[str, set[str]]
+
+    DEPTH_IMAGES = ["_N", "_G", "_S", "norm", "Norm", "NORM", "gloss", "Gloss", "GLOSS", "spec", "Spec", "SPEC"]
 
     @cached_property
     def image_directory(self) -> str:
@@ -94,28 +98,71 @@ class VarObjectImageLib:
                 files.append(file)
         return files
 
-    @staticmethod
-    def _write_image_to_buffer(img: Image, img_format: str, quality=95):
+    def _write_image_to_buffer(self, img: Image, img_format: str, always_optimize=False):
         buffer = BytesIO()
-        img.save(buffer, img_format, quality=quality, optimize=True)
+        if img_format == "PNG":
+            if always_optimize or self._should_quantize_image(img):
+                img = imagequant.quantize_pil_image(
+                    img,
+                    dithering_level=1.0,  # from 0.0 to 1.0
+                    max_colors=256,  # from 1 to 256
+                )
+            img.save(buffer, img_format)
+        elif img_format == "TIF" or img_format == "TIFF":
+            img.save(buffer, img_format, compression="jpeg", quality=95, optimize=True)
+        else:
+            img.save(buffer, img_format, quality=95, optimize=True)
         return buffer
 
-    def _compress_image_if_possible(self, img_data: bytes, allow_4k_scaling=False, allow_large_updates=False):
+    @staticmethod
+    def _should_quantize_image(img: Image):
+        colors = img.getcolors(maxcolors=100000)
+        if colors is None:
+            return False
+
+        # Check if quantization could be a good option
+        colors = sorted(colors, reverse=True)
+        if len(colors) <= 256:
+            return True
+        # Else if dominant pixels make up most of the image
+        elif (sum([c[0] for c in colors[:256]]) / sum([c[0] for c in colors])) > 0.5:
+            return True
+        else:
+            return False
+
+    def _compress_image_if_possible(self, img_data: bytes, img_filename: str, png_only=False):
         original_img_data = BytesIO(img_data)
         original_img = Image.open(original_img_data)
         original_image_size = original_img_data.getbuffer().nbytes
+        original_image_format = original_img.format
 
-        image_format = original_img.format
+        # Only process PNGs
+        if png_only and original_image_format != "PNG":
+            return None
+
+        # Do not process non-square images, these can have issues rescaling
         if original_img.height != original_img.width:
             return None
 
+        # Depth images don't need many colors
+        image_is_for_depth_only = are_substrings_in_str(img_filename, self.DEPTH_IMAGES)
+        # Non-texture images don't need as high a resolution in some cases
+        image_is_not_texture = img_filename not in self.texture_image_files
+        # Small images are less then 3MB
+        image_is_small = original_image_size < (2 * MEGABYTE)
+
+        # Only do 4k->2k scaling for depth and non-texture images
+        allow_4k_scaling = image_is_not_texture and image_is_for_depth_only and not png_only
+
         img_downsampled, is_downsampled = _downsample_image_if_possible(original_img, allow_4k_scaling=allow_4k_scaling)
-        if not is_downsampled and not allow_large_updates:
+        if not is_downsampled and image_is_small:
             return None
 
         # Try to store the image at 95 quality
         try:
-            img_out = self._write_image_to_buffer(img_downsampled, image_format, quality=95)
+            img_out = self._write_image_to_buffer(
+                img_downsampled, original_image_format, always_optimize=image_is_for_depth_only
+            )
             ratio = img_out.getbuffer().nbytes / original_image_size
             if ratio < 0.8:
                 return img_out
@@ -125,7 +172,7 @@ class VarObjectImageLib:
         except ValueError:
             return None
 
-    def compress(self):
+    def compress(self, png_only=False):
         # print(f"\nCOMPRESSING: {self.file_path}")
         pre_stat_mb = os.stat(self.file_path).st_size / MEGABYTE
         image_bytes_pre = 0
@@ -146,18 +193,7 @@ class VarObjectImageLib:
                             image_data_size = io.BytesIO(image_data).getbuffer().nbytes
                             image_bytes_pre += image_data_size
 
-                            # Only allow 4K->2K downsampling for large texture clothing
-                            # 8K->4K downsampling will always be attempted if 8k files are found
-                            # Body textures should never be downsampled below 4k or they result in issues
-                            allow_4k_scaling = item.filename in self.clothing_image_files and pre_stat_mb > 100
-
-                            # If files are larger than 10 MB, we can try to resave them because they may have
-                            # been written initially with an unoptimized profile
-                            allow_large_updates = (item.compress_size / MEGABYTE) > 5
-
-                            image_write = self._compress_image_if_possible(
-                                image_data, allow_4k_scaling=allow_4k_scaling, allow_large_updates=allow_large_updates
-                            )
+                            image_write = self._compress_image_if_possible(image_data, item.filename, png_only=png_only)
                             if image_write is not None:
                                 image_bytes_post += image_write.getbuffer().nbytes
                                 images_updated = True
@@ -205,8 +241,7 @@ class VarObjectImageLib:
 
         if isinstance(img.info.get("transparency"), bytes):
             img = img.convert("RGBA")
-        else:
-            img = img.convert("RGB")
+        img = img.convert("RGB")
         return img
 
     def extract_identity_image_data(self) -> Optional[Image.Image]:

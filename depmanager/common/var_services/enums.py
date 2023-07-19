@@ -36,7 +36,7 @@ class Ext:
     TYPES_REPLACE = TYPES_JSON + TYPES_IMAGE + TYPES_PLUGIN
 
 
-IMAGE_LIB_DIR = "image_lib"
+IMAGE_LIB_DIR = "_image_lib"
 REPAIR_LIB_DIR = "repair_lib"
 ADDON_PACKAGE_USER_PREFS_DIR = "AddonPackagesUserPrefs"
 TEMP_VAR_NAME = "temp.temp.1.var"

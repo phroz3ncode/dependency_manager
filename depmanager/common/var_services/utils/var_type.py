@@ -2,6 +2,7 @@ from os import path
 from typing import Optional
 
 from depmanager.common.shared.tools import is_str_in_substrings
+from depmanager.common.var_services.enums import Ext
 
 
 class VarType:
@@ -93,6 +94,7 @@ class VarType:
 
     @classmethod
     def ref_from_namelist(cls, namelist: list[str]) -> dict[str, bool]:
+        namelist_json_only = [item for item in namelist if Ext.JSON in item]
         return {
             cls.ASSET: is_str_in_substrings("custom/assets/", namelist),
             cls.CLOTHING: is_str_in_substrings("custom/clothing/", namelist),
@@ -101,7 +103,7 @@ class VarType:
             cls.TEXTURE: is_str_in_substrings("custom/atom/person/textures/", namelist),
             cls.PRESET: is_str_in_substrings("custom/atom/person/appearance/", namelist),
             cls.PLUGIN: is_str_in_substrings("custom/scripts/", namelist),
-            cls.SCENE: is_str_in_substrings("saves/scene/", namelist),
+            cls.SCENE: is_str_in_substrings("saves/scene/", namelist_json_only),
             cls.APPEARANCE: is_str_in_substrings("saves/person/appearance/", namelist),
             cls.SOUND: is_str_in_substrings("custom/sounds/", namelist),
             cls.POSE: is_str_in_substrings("saves/person/pose/", namelist)
