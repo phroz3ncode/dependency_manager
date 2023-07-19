@@ -56,7 +56,7 @@ class VarDatabaseBase:
             except AttributeError:
                 continue
 
-    def _clear_cache(self, cached_attribs=None):
+    def _clear_cache(self):
         self._clear_attributes(
             [
                 "directory_files",

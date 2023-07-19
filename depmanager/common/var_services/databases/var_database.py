@@ -23,7 +23,7 @@ from depmanager.common.var_services.utils.var_type import VarType
 
 
 class VarDatabase(VarDatabaseImageDB):
-    def _clear_cache(self, cached_attribs=None):
+    def _clear_cache(self):
         self._clear_attributes(
             [
                 "vars_required",
@@ -355,16 +355,16 @@ class VarDatabase(VarDatabaseImageDB):
 
     def find_oversize_vars(self):
         var_list = set()
-        progress = ProgressBar(len(self.keys), description=f"Searching oversize vars")
+        progress = ProgressBar(len(self.keys), description="Searching oversize vars")
         for var_id in self.keys:
             progress.inc()
             images_list = [
                 filename
                 for filename, size in self[var_id].infolist
                 if (
-                       (os.path.splitext(filename)[1] == Ext.TIF and size > (8 * MEGABYTE)) or
-                       (os.path.splitext(filename)[1] == Ext.PNG and size > (8 * MEGABYTE)) or
-                       (os.path.splitext(filename)[1] == Ext.JPG and size > (12 * MEGABYTE))
+                    (os.path.splitext(filename)[1] == Ext.TIF and size > (8 * MEGABYTE))
+                    or (os.path.splitext(filename)[1] == Ext.PNG and size > (8 * MEGABYTE))
+                    or (os.path.splitext(filename)[1] == Ext.JPG and size > (12 * MEGABYTE))
                 )
             ]
             if len(images_list) > 0:

@@ -7,7 +7,7 @@ from typing import Optional
 from zipfile import ZIP_DEFLATED
 from zipfile import ZipFile
 
-import imagequant as imagequant
+import imagequant
 import PIL
 from PIL import Image
 from PIL import UnidentifiedImageError
@@ -108,7 +108,7 @@ class VarObjectImageLib:
                     max_colors=256,  # from 1 to 256
                 )
             img.save(buffer, img_format)
-        elif img_format == "TIF" or img_format == "TIFF":
+        elif img_format in ("TIF", "TIFF"):
             img.save(buffer, img_format, compression="jpeg", quality=95, optimize=True)
         else:
             img.save(buffer, img_format, quality=95, optimize=True)
@@ -122,13 +122,15 @@ class VarObjectImageLib:
 
         # Check if quantization could be a good option
         colors = sorted(colors, reverse=True)
+        primary_colors = sum(c[0] for c in colors[:256])
+        all_colors = sum(c[0] for c in colors)
         if len(colors) <= 256:
             return True
         # Else if dominant pixels make up most of the image
-        elif (sum([c[0] for c in colors[:256]]) / sum([c[0] for c in colors])) > 0.5:
+        if (primary_colors / all_colors) > 0.5:
             return True
-        else:
-            return False
+
+        return False
 
     def _compress_image_if_possible(self, img_data: bytes, img_filename: str, png_only=False):
         original_img_data = BytesIO(img_data)
