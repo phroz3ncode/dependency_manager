@@ -5,3 +5,4 @@ isort~=5.11.4
 pylint~=2.15.10
 orjson~=3.8.5
 filedate~=2.0
+imagequant~=1.0.4

@@ -593,6 +593,7 @@ class VarDatabase(VarDatabaseImageDB):
         print(f"CHECKING REPAIR {var_ref.var_id}...")
         var_obj = VarObject(var_ref.root_path, var_ref.file_path)
         replacement_mappings, replacement_used_packages = self.find_var_replacement_mappings(var_obj)
+        json_errors_during_repair = False
 
         # If the local object doesn't have problems we don't need to reprocess it
         if len(replacement_mappings) == 0:
@@ -678,8 +679,13 @@ class VarDatabase(VarDatabaseImageDB):
                         write_data = orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode("UTF-8")
                         zf_dest.writestr(item.filename, write_data, zipfile.ZIP_DEFLATED)
                     except JSONDecodeError as err:
-                        print(f"JSONDecodeError: {err}")
+                        print(f"JSONDecodeError: {item.filename} >> {err}")
                         zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+                        json_errors_during_repair = True
+
+        if json_errors_during_repair:
+            os.remove(temp_file)
+            return False
 
         os.remove(var_obj.file_path)
         os.rename(temp_file, var_obj.file_path)

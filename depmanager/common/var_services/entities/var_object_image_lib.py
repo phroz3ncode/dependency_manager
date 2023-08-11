@@ -64,7 +64,7 @@ class VarObjectImageLib:
     @cached_property
     def is_compressible(self) -> bool:
         compressible_jpg = [
-            item for item in self.infolist if path.splitext(item[0])[1] == Ext.JPG and item[1] > MEGABYTE
+            item for item in self.infolist if path.splitext(item[0])[1] == Ext.JPG and item[1] > 3 * MEGABYTE
         ]
         compressible_png = [
             item for item in self.infolist if path.splitext(item[0])[1] == Ext.PNG and item[1] > 5 * MEGABYTE
@@ -109,7 +109,10 @@ class VarObjectImageLib:
                 )
             img.save(buffer, img_format)
         elif img_format in ("TIF", "TIFF"):
-            img.save(buffer, img_format, compression="jpeg", quality=95, optimize=True)
+            try:
+                img.save(buffer, img_format, compression="jpeg", quality=95, optimize=True)
+            except (RuntimeError, OSError):
+                raise ValueError
         else:
             img.save(buffer, img_format, quality=95, optimize=True)
         return buffer

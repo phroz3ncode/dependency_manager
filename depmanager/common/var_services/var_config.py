@@ -10,7 +10,8 @@ IMAGE_RESOURCE_DIR = sys._MEIPASS if hasattr(sys, "_MEIPASS") else "resources"
 class VarConfig:
     DEFAULT = {
         "remote_path": os.getenv("REMOTE_PATH") if os.getenv("REMOTE_PATH") else "",
-        "compress_on_import": True,
+        "remote_image_db": False,
+        "compress_on_import": False,
         "repair_on_import": True,
         "repair_auto_skip_on_missing": False,
         "repair_auto_fix_on_missing": False,
@@ -71,20 +72,24 @@ class VarConfig:
         return self.config["remote_path"]
 
     @property
+    def remote_image_db(self) -> bool:
+        return self.config.get("remote_image_db", False)
+
+    @property
     def auto_compress(self) -> bool:
-        return self.config["compress_on_import"]
+        return self.config.get("compress_on_import", False)
 
     @property
     def auto_repair(self) -> bool:
-        return self.config["repair_on_import"]
+        return self.config.get("repair_on_import", True)
 
     @property
     def auto_skip(self) -> bool:
-        return self.config["repair_auto_skip_on_missing"]
+        return self.config.get("repair_auto_skip_on_missing", True)
 
     @property
     def auto_fix(self) -> bool:
-        return self.config["repair_auto_fix_on_missing"]
+        return self.config.get("repair_auto_fix_on_missing", False)
 
     @property
     def favorites(self) -> dict[str, list[str]]:
