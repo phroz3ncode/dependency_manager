@@ -7,7 +7,7 @@ import sys
 IMAGE_RESOURCE_DIR = sys._MEIPASS if hasattr(sys, "_MEIPASS") else "resources"
 
 
-class VarConfig:
+class Config:
     DEFAULT = {
         "remote_path": os.getenv("REMOTE_PATH") if os.getenv("REMOTE_PATH") else "",
         "remote_image_db": False,

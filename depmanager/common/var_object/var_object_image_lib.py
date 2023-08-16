@@ -13,14 +13,13 @@ from PIL import Image
 from PIL import UnidentifiedImageError
 
 from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.shared.enums import MEGABYTE
+from depmanager.common.enums.variables import MEGABYTE, TEMP_VAR_NAME
+from depmanager.common.enums.paths import IMAGE_LIB_DIR
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
-from depmanager.common.var_services.enums import IMAGE_LIB_DIR
-from depmanager.common.var_services.enums import TEMP_VAR_NAME
-from depmanager.common.var_services.enums import Ext
-from depmanager.common.var_services.utils.var_type import VarType
-from depmanager.common.var_services.var_config import IMAGE_RESOURCE_DIR
+from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.content_type import ContentType
+from depmanager.common.enums.config import IMAGE_RESOURCE_DIR
 
 PIL.Image.MAX_IMAGE_PIXELS = 225000000
 
@@ -40,7 +39,7 @@ def _downsample_image_if_possible(img: Image, allow_4k_scaling=False) -> tuple[I
 class VarObjectImageLib:
     contains: dict[str, bool]
     dependencies: list[str]
-    var_type: VarType
+    var_type: ContentType
 
     file_path: str
     directory: str
@@ -329,14 +328,14 @@ class VarObjectImageLib:
         return clean_identities[0]
 
     def extract_default_image_data(self, default_type):
-        if default_type == VarType.ASSET:
+        if default_type == ContentType.ASSET:
             return Image.open(path.join(IMAGE_RESOURCE_DIR, "unity.jpg")).convert("RGB")
-        if default_type == VarType.MORPH:
+        if default_type == ContentType.MORPH:
             return Image.open(path.join(IMAGE_RESOURCE_DIR, "morph.jpg")).convert("RGB")
-        if default_type == VarType.PLUGIN:
+        if default_type == ContentType.PLUGIN:
             return Image.open(path.join(IMAGE_RESOURCE_DIR, "plugin.jpg")).convert("RGB")
-        if default_type == VarType.SOUND:
+        if default_type == ContentType.SOUND:
             return Image.open(path.join(IMAGE_RESOURCE_DIR, "sound.jpg")).convert("RGB")
-        if default_type == VarType.UNITY:
+        if default_type == ContentType.UNITY:
             return Image.open(path.join(IMAGE_RESOURCE_DIR, "unity.jpg")).convert("RGB")
         raise ValueError("Type does not support default image data")

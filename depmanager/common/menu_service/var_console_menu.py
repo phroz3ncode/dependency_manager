@@ -1,12 +1,12 @@
 from depmanager.common.shared.console_menu import ConsoleMenu
-from depmanager.common.var_services.databases.var_cache_service import VarCacheService
-from depmanager.common.var_services.var_config import VarConfig
-from depmanager.common.var_services.var_menu.menu_main import MenuMain
+from depmanager.common.var_database_service.var_cache_service import VarCacheService
+from depmanager.common.enums.config import Config
+from depmanager.common.menu_service.menu_main import MenuMain
 from depmanager.version_var import VAR
 
 
 class VarConsoleMenu(ConsoleMenu):
-    def __init__(self, var_config: VarConfig):
+    def __init__(self, var_config: Config):
         super().__init__(var_config.local_path, var_config.remote_path, "VAR Manager", VAR)
         self.var_config = var_config
         self.cache = VarCacheService(self.var_config)

@@ -1,12 +1,12 @@
 import os
 
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
-from depmanager.common.shared.enums import MEGABYTE
+from depmanager.common.enums.variables import MEGABYTE
+from depmanager.common.enums.paths import TEMP_REPAIR_DIR
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
-from depmanager.common.var_services.enums import TEMP_REPAIR_DIR
-from depmanager.common.var_services.enums import OrganizeMethods
-from depmanager.common.var_services.var_menu.base_actions_menu import BaseActionsMenu
+from depmanager.common.enums.methods import OrganizeMethods
+from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
 
 
 class MenuMaintenance(BaseActionsMenu):

@@ -7,19 +7,19 @@ from typing import Any
 from zipfile import ZipFile
 
 from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.shared.enums import MEGABYTE
+from depmanager.common.enums.variables import MEGABYTE
 from depmanager.common.shared.tools import are_substrings_in_str
-from depmanager.common.var_services.entities.var_object_base import VarObjectBase
-from depmanager.common.var_services.entities.var_object_image_lib import VarObjectImageLib
-from depmanager.common.var_services.enums import Ext
-from depmanager.common.var_services.utils.var_parser import VarParser
-from depmanager.common.var_services.utils.var_type import VarType
+from depmanager.common.var_object.var_object_base import VarObjectBase
+from depmanager.common.var_object.var_object_image_lib import VarObjectImageLib
+from depmanager.common.enums.ext import Ext
+from depmanager.common.shared.json_parser import VarParser
+from depmanager.common.enums.content_type import ContentType
 
 
 class VarObject(VarObjectBase, VarObjectImageLib):
     contains: dict[str, bool]
     dependencies: list[str]
-    var_type: VarType
+    var_type: ContentType
     infolist: list[tuple[str, int]]
 
     def __init__(
@@ -38,8 +38,8 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         self.infolist = infolist if infolist is not None else self._var_raw_data["infolist"]
         self.dependencies = dependencies if dependencies is not None else self._var_raw_data["dependencies"]
         self.used_packages = used_packages if used_packages is not None else self._var_raw_data["used_packages"]
-        self.contains = contains if contains is not None else VarType.ref_from_namelist(self.namelist)
-        self.var_type = VarType(self.contains)
+        self.contains = contains if contains is not None else ContentType.ref_from_namelist(self.namelist)
+        self.var_type = ContentType(self.contains)
 
     def to_dict(self):
         return {
@@ -111,7 +111,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         if self.is_custom:
             return self.var_type.DIR_CUSTOM
         if self.var_type.type in self.var_type.types_with_json:
-            if are_substrings_in_str(current_subdir, [VarType.DIR_SCENE, VarType.DIR_LOOK]):
+            if are_substrings_in_str(current_subdir, [ContentType.DIR_SCENE, ContentType.DIR_LOOK]):
                 return current_subdir
         return self.var_type.type_subdirectory
 

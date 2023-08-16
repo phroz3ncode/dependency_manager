@@ -16,11 +16,10 @@ from orjson import orjson
 from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import get_file_stat
-from depmanager.common.var_services.entities.var_object import VarObject
-from depmanager.common.var_services.enums import IMAGE_LIB_DIR
-from depmanager.common.var_services.enums import REPAIR_LIB_DIR
-from depmanager.common.var_services.enums import TEMP_VAR_NAME
-from depmanager.common.var_services.enums import Ext
+from depmanager.common.var_object.var_object import VarObject
+from depmanager.common.enums.variables import TEMP_VAR_NAME
+from depmanager.common.enums.paths import IMAGE_LIB_DIR, REPAIR_LIB_DIR
+from depmanager.common.enums.ext import Ext
 
 
 class VarDatabaseBase:

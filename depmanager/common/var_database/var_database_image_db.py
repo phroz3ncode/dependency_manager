@@ -6,9 +6,9 @@ from os import path
 import filedate
 
 from depmanager.common.shared.tools import remove_empty_directories
-from depmanager.common.var_services.databases.var_database_base import VarDatabaseBase
-from depmanager.common.var_services.enums import IMAGE_LIB_DIR
-from depmanager.common.var_services.enums import Ext
+from depmanager.common.var_database.var_database_base import VarDatabaseBase
+from depmanager.common.enums.paths import IMAGE_LIB_DIR
+from depmanager.common.enums.ext import Ext
 
 
 class VarDatabaseImageDB(VarDatabaseBase):

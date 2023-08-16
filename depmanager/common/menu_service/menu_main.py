@@ -2,8 +2,8 @@ import os
 import zipfile
 
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
-from depmanager.common.var_services.var_menu.base_actions_menu import BaseActionsMenu
-from depmanager.common.var_services.var_menu.menu_maintenance import MenuMaintenance
+from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
+from depmanager.common.menu_service.menu_maintenance import MenuMaintenance
 
 
 class MenuMain(BaseActionsMenu):
@@ -43,8 +43,8 @@ class MenuMain(BaseActionsMenu):
         self.cache.clear()
 
     def backup_custom(self):
-        root_path = os.path.abspath(os.path.join(self.cache.local_path, ".."))
-        zip_root_path = os.path.abspath(os.path.join(root_path, ".."))
+        root_path = os.path.abspath(os.path.join(self.cache.local_path, "../var_services"))
+        zip_root_path = os.path.abspath(os.path.join(root_path, "../var_services"))
 
         zip_name = os.path.join(root_path, "vam_custom.zip")
         if os.path.exists(zip_name):

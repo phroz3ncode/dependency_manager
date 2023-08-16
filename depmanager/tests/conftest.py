@@ -5,8 +5,8 @@ from unittest.mock import PropertyMock
 
 import pytest
 
-from depmanager.common.var_services.databases.var_database import VarDatabase
-from depmanager.common.var_services.entities.var_object import VarObject
+from depmanager.common.var_database.var_database import VarDatabase
+from depmanager.common.var_object.var_object import VarObject
 
 
 @pytest.fixture(autouse=True)

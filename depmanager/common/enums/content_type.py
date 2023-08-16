@@ -2,10 +2,10 @@ from os import path
 from typing import Optional
 
 from depmanager.common.shared.tools import is_str_in_substrings
-from depmanager.common.var_services.enums import Ext
+from depmanager.common.enums.ext import Ext
 
 
-class VarType:
+class ContentType:
     ASSET = "asset"
     APPEARANCE = "appearance"
     CLOTHING = "clothing"

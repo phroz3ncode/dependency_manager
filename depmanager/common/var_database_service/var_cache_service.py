@@ -1,23 +1,21 @@
 import json
 import os
 
-from depmanager.common.shared.enums import GIGABYTE
+from depmanager.common.enums.variables import GIGABYTE
+from depmanager.common.enums.paths import ADDON_PACKAGE_USER_PREFS_DIR, TEMP_SYNC_DIR
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.shared.tools import remove_empty_directories
-from depmanager.common.var_services.databases.file_database import FileDatabase
-from depmanager.common.var_services.databases.var_database import VarDatabase
-from depmanager.common.var_services.entities.var_object import VarObject
-from depmanager.common.var_services.enums import ADDON_PACKAGE_USER_PREFS_DIR
-from depmanager.common.var_services.enums import TEMP_SYNC_DIR
-from depmanager.common.var_services.enums import Ext
-from depmanager.common.var_services.enums import OrganizeMethods
-from depmanager.common.var_services.utils.var_type import VarType
-from depmanager.common.var_services.var_config import VarConfig
+from depmanager.common.var_database.var_database import VarDatabase
+from depmanager.common.var_object.var_object import VarObject
+from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.methods import OrganizeMethods
+from depmanager.common.enums.content_type import ContentType
+from depmanager.common.enums.config import Config
 
 
 class VarCacheService:
-    def __init__(self, var_config: VarConfig):
+    def __init__(self, var_config: Config):
         self.var_config = var_config
         self.remote_db_cache = None
         self.local_db_cache = None
@@ -112,8 +110,8 @@ class VarCacheService:
             can_include = var.var_type.is_repairable
             if include_clothing:
                 can_include = var.var_type.is_repairable or var.var_type.type in (
-                    VarType.CLOTHING,
-                    VarType.TEXTURE,
+                    ContentType.CLOTHING,
+                    ContentType.TEXTURE,
                 )
             if not can_include:
                 continue
@@ -321,13 +319,13 @@ class VarCacheService:
         self.local_db_cache = None
         template = {"pluginsAlwaysEnabled": "true", "pluginsAlwaysDisabled": "false"}
         pref_path = os.path.join(
-            os.path.abspath(os.path.join(self.local_db.rootpath, "..")),
+            os.path.abspath(os.path.join(self.local_db.rootpath, "../var_services")),
             ADDON_PACKAGE_USER_PREFS_DIR,
         )
         if not os.path.exists(pref_path):
             return
         for var_id, var in self.local_db.vars.items():
-            if var.var_type.contains_type(VarType.PLUGIN):
+            if var.var_type.contains_type(ContentType.PLUGIN):
                 file_path = os.path.join(pref_path, f"{var_id}{Ext.PREFS}")
                 with open(file_path, "w", encoding="UTF-8") as write_file:
                     json.dump(template, write_file, indent=4)

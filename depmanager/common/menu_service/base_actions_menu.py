@@ -1,6 +1,6 @@
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
-from depmanager.common.var_services.databases.var_cache_service import VarCacheService
-from depmanager.common.var_services.enums import Ext
+from depmanager.common.var_database_service.var_cache_service import VarCacheService
+from depmanager.common.enums.ext import Ext
 
 
 class BaseActionsMenu:

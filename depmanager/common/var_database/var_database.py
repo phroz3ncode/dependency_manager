@@ -9,17 +9,15 @@ from os import path
 from orjson import orjson
 
 from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.shared.enums import MEGABYTE
+from depmanager.common.enums.variables import MEGABYTE, TEMP_VAR_NAME, BACKWARDS_COMPAT_PLUGIN_AUTHORS
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import find_fuzzy_file_match
 from depmanager.common.shared.tools import select_fuzzy_match
-from depmanager.common.var_services.databases.var_database_image_db import VarDatabaseImageDB
-from depmanager.common.var_services.entities.var_object import VarObject
-from depmanager.common.var_services.enums import BACKWARDS_COMPAT_PLUGIN_AUTHORS
-from depmanager.common.var_services.enums import TEMP_VAR_NAME
-from depmanager.common.var_services.enums import Ext
-from depmanager.common.var_services.utils.var_parser import VarParser
-from depmanager.common.var_services.utils.var_type import VarType
+from depmanager.common.var_database.var_database_image_db import VarDatabaseImageDB
+from depmanager.common.var_object.var_object import VarObject
+from depmanager.common.enums.ext import Ext
+from depmanager.common.shared.json_parser import VarParser
+from depmanager.common.enums.content_type import ContentType
 
 
 class VarDatabase(VarDatabaseImageDB):
@@ -134,7 +132,7 @@ class VarDatabase(VarDatabaseImageDB):
         """Builds a repair index
 
         We sort by the following:
-            - VarType.REFERENCE_PRIORITY (this is how likely the item is to be a base reference, not part of a scene)
+            - ContentType.REFERENCE_PRIORITY (this is how likely the item is to be a base reference, not part of a scene)
             - Is the item used as a reference by other vars? If so it is preferred to an unused item
             - Name of the var (if the name is a well known resource maker, we append a . to bubble them to the top)
             - Version (we prioritize newer versions over old versions, so the sort version is 10000 - version)
@@ -395,7 +393,7 @@ class VarDatabase(VarDatabaseImageDB):
         if var_package is None:
             return False
 
-        if var_package.var_type.type == VarType.PLUGIN and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS:
+        if var_package.var_type.type == ContentType.PLUGIN and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS:
             return True
 
         return False
@@ -412,7 +410,7 @@ class VarDatabase(VarDatabaseImageDB):
         if var_package is None:
             return False
 
-        if var_package.var_type.type == VarType.PLUGIN and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS:
+        if var_package.var_type.type == ContentType.PLUGIN and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS:
             return False
 
         latest_version = max(self.vars_versions.get(var_package.duplicate_id))
