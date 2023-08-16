@@ -58,13 +58,14 @@ class MenuMain(BaseActionsMenu):
             "UnityPlayer.dll",
             "VaM (Desktop Mode).bat",
             "VaM.exe",
+            "VaM_EULA.html",
             "VaM_Updater.exe",
             "version",
             "vrmanifest",
             "WinPixEventRuntime.dll",
         ]
         includes = {
-            root_path: ["AddonPackages", "AddonPackagesUserPrefs", "Custom", "Keys", "Saves"],
+            root_path: ["AddonPackages", "AddonPackagesUserPrefs", "Custom", "Keys", "Tools", "Saves"],
             os.path.join(root_path, "AddonPackages"): ["_session"],
             os.path.join(root_path, "Custom"): ["PluginPresets"],
             os.path.join(root_path, "Saves"): ["PluginData", "scene"],

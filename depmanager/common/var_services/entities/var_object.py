@@ -164,7 +164,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         for file in self.namelist:
             file_parts = path.splitext(file)
             if file_parts[1].lower() in (Ext.JSON, Ext.VAP, Ext.VAJ):
-                if file == "meta.json":
+                if file == "meta.json" or "Custom/Scripts/" in file:
                     continue
                 files.append(file)
         return files

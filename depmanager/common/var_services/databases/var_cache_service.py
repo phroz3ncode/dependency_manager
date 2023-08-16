@@ -5,6 +5,7 @@ from depmanager.common.shared.enums import GIGABYTE
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.shared.tools import remove_empty_directories
+from depmanager.common.var_services.databases.file_database import FileDatabase
 from depmanager.common.var_services.databases.var_database import VarDatabase
 from depmanager.common.var_services.entities.var_object import VarObject
 from depmanager.common.var_services.enums import ADDON_PACKAGE_USER_PREFS_DIR

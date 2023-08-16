@@ -37,6 +37,7 @@ class VarDatabaseBase:
         self.vars = {}
         self.disable_save = disable_save
         self.quick_scan = quick_scan
+        self.scanned = False
 
         self.load()
 
@@ -101,6 +102,7 @@ class VarDatabaseBase:
     @cached_property
     def directory_files(self) -> list[tuple[str, float, float]]:
         print("Parallel scanning directories...")
+        self.scanned = True
         files = [
             os.path.join(f[1], f[0])
             for f in list(
@@ -169,6 +171,8 @@ class VarDatabaseBase:
             print(f"Removing temp var: {file_path}")
             os.remove(file_path)
             return None
+        if filename_ext == Ext.VAR and len(filename.split(".")) == 4 and "_" in filename.split(".")[2]:
+            print(f"Incorrect formatted var: {file_path}")
 
         return self.vars.get(filename.replace(Ext.VAR if not is_image else Ext.JPG, Ext.EMPTY))
 
@@ -236,7 +240,7 @@ class VarDatabaseBase:
         if not self.disable_save and self._database_is_dirty:
             self.save()
 
-    def remove_files(self, display=True) -> None:
+    def remove_files(self) -> None:
         files = self.directory_files
         present_files = set(f[0] for f in files)
         current_var_files = self.vars_directory_files
@@ -244,11 +248,10 @@ class VarDatabaseBase:
         if len(removed_files) > 0:
             self._database_is_dirty = True
 
-        if display:
-            for var_path in sorted(removed_files):
-                var = self.get_var_from_filepath(var_path).var_id
-                print(f"Removing: {var}")
-                self.vars.pop(var)
+        for var_path in sorted(removed_files):
+            var = self.get_var_from_filepath(var_path).var_id
+            print(f"Removing: {var}")
+            self.vars.pop(var)
 
     def manipulate_file(self, var_id, dest_dir, move=False, symlink=False) -> None:
         os.makedirs(dest_dir, exist_ok=True)
