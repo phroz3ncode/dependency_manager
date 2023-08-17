@@ -2,8 +2,8 @@ import copy
 import os
 from os import path
 
-from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.enums.ext import Ext
+from depmanager.common.shared.cached_property import cached_property
 
 
 class VarObjectBase:

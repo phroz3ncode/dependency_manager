@@ -1,5 +1,5 @@
-from depmanager.common.shared.console_menu_item import ConsoleMenuItem
 from depmanager.common.enums.variables import DIVIDER
+from depmanager.common.shared.console_menu_item import ConsoleMenuItem
 
 DEBUG_MODE = True
 

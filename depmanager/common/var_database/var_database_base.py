@@ -13,28 +13,28 @@ from typing import Optional
 
 from orjson import orjson
 
+from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.paths import IMAGE_LIB_DIR
+from depmanager.common.enums.paths import REPAIR_LIB_DIR
+from depmanager.common.enums.variables import TEMP_VAR_NAME
+from depmanager.common.shared.cached_object import CachedObject
 from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import get_file_stat
 from depmanager.common.var_object.var_object import VarObject
-from depmanager.common.enums.variables import TEMP_VAR_NAME
-from depmanager.common.enums.paths import IMAGE_LIB_DIR, REPAIR_LIB_DIR
-from depmanager.common.enums.ext import Ext
 
 
-class VarDatabaseBase:
+class VarDatabaseBase(CachedObject):
     INCLUDE_LIST = ["var"]
     EXCLUDE_LIST = ["disabled"]
     APPEARANCE_LIST = ["json", "vap"]
 
-    def __init__(self, root: str = None, disable_save: bool = False, quick_scan: bool = False):
-        # Database is always assumed to be dirty on initialization
-        self._database_is_dirty = True
+    def __init__(self, root: str = None, quick_scan: bool = False):
+        self._files_added_or_removed = False
 
         self.rootpath = root
         self.root_db = "remote_db.json"
         self.vars = {}
-        self.disable_save = disable_save
         self.quick_scan = quick_scan
         self.scanned = False
 
@@ -49,31 +49,19 @@ class VarDatabaseBase:
     def __setitem__(self, key, value):
         self.vars[key] = value
 
-    def _clear_attributes(self, attributes):
-        for attrib in attributes:
-            try:
-                delattr(self, attrib)
-            except AttributeError:
-                continue
-
-    def _clear_cache(self):
-        self._clear_attributes(
-            [
-                "directory_files",
-                "vars_directory_files",
-                "vars_versions",
-            ]
-        )
-        self._database_is_dirty = False
+    @property
+    def _attributes(self):
+        return [
+            "directory_files",
+            "vars_directory_files",
+            "vars_versions",
+        ]
 
     def refresh(self) -> None:
         # Cache must be cleared to perform a clean scan
-        self._clear_cache()
+        self.clear()
         self.remove_files()
         self.add_files()
-        # If the scan updated any variables the cache may now be "dirty"
-        if self._database_is_dirty:
-            self._clear_cache()
 
     @property
     def keys(self):
@@ -139,9 +127,13 @@ class VarDatabaseBase:
         ).decode("UTF-8")
 
     def save(self) -> None:
-        print(f"Saving database {self.root_db_path}")
-        with open(self.root_db_path, "w", encoding="UTF-8") as write_db_file:
-            write_db_file.write(self.to_json())
+        if self._files_added_or_removed:
+            print(f"Saving database {self.root_db_path}")
+            with open(self.root_db_path, "w", encoding="UTF-8") as write_db_file:
+                write_db_file.write(self.to_json())
+            self._files_added_or_removed = False
+            attributes = [a for a in self._attributes if a != "directory_files"]
+            self.clear(attributes)
 
     def load(self) -> None:
         if not path.exists(self.root_db_path):
@@ -204,40 +196,33 @@ class VarDatabaseBase:
         try:
             var = VarObject(root_path=self.rootpath, file_path=file_path, quick_scan=self.quick_scan)
             self[var.var_id] = var
+            self._files_added_or_removed = True
         except (ValueError, KeyError, PermissionError, zipfile.BadZipfile) as err:
             print(f"ERROR :: Could not read {file_path} >> {err}")
 
-    def add_file(self, file_path: str, filemod=None, filesize=None) -> bool:
+    def add_file(self, file_path: str, filemod=None, filesize=None):
         if "temp.temp.1.var" in file_path:
-            return False
+            return
 
         var = self.get_var_from_filepath(file_path)
         if var is not None:
             if var.file_path != file_path:
                 print(f"Warning: {file_path} is a duplicate var")
-                return False
+                return
             if (filemod != var.modified and filesize != var.size) or (
                 (filemod is None or filesize is None) and var.updated
             ):
                 print(f"Updating: {var.var_id}")
                 self.update_var(file_path)
-                self._database_is_dirty = True
-                return True
-            return False
+            return
 
         self.update_var(file_path)
-        self._database_is_dirty = True
-        return True
 
     def add_files(self) -> None:
         progress = ProgressBar(self.directory_count, description="Scanning vars")
         for filepath, filemod, filesize in self.directory_files:
             progress.inc()
-            file_added = self.add_file(filepath, filemod, filesize)
-            if file_added:
-                self._database_is_dirty = True
-        if not self.disable_save and self._database_is_dirty:
-            self.save()
+            self.add_file(filepath, filemod, filesize)
 
     def remove_files(self) -> None:
         files = self.directory_files
@@ -245,14 +230,14 @@ class VarDatabaseBase:
         current_var_files = self.vars_directory_files
         removed_files = current_var_files - present_files
         if len(removed_files) > 0:
-            self._database_is_dirty = True
+            self._files_added_or_removed = True
 
         for var_path in sorted(removed_files):
             var = self.get_var_from_filepath(var_path).var_id
             print(f"Removing: {var}")
             self.vars.pop(var)
 
-    def manipulate_file(self, var_id, dest_dir, move=False, symlink=False) -> None:
+    def manipulate_file(self, var_id, dest_dir, move=False, symlink=False, track_move=True) -> None:
         os.makedirs(dest_dir, exist_ok=True)
 
         var = self[var_id]
@@ -262,23 +247,31 @@ class VarDatabaseBase:
         if not path.isfile(src_path):
             print(f"Var not found on disk: {var_id} [Please refresh remote or local database]")
         if move:
+            self._files_added_or_removed = track_move
             os.rename(src_path, dest_path)
             self[var.var_id] = self[var.var_id].from_new_path(self.rootpath, dest_path)
         elif symlink and var.prefer_symlink:
             if not path.isfile(dest_path):
+                self._files_added_or_removed = track_move
                 try:
                     os.symlink(src_path, dest_path)
                 except WindowsError:
                     shutil.copy2(src_path, dest_path)
         else:
             if not path.isfile(dest_path):
+                self._files_added_or_removed = track_move
                 shutil.copy2(src_path, dest_path)
 
-    def manipulate_file_list(self, var_id_list, sub_directory, append=False, remove=False, suffix=False) -> None:
+    def manipulate_file_list(
+        self, var_id_list, sub_directory, append=False, remove=False, suffix=False, desc=None
+    ) -> None:
         if len(var_id_list) == 0:
             return
 
-        progress = ProgressBar(len(var_id_list), "Moving/Copying vars")
+        if desc is None:
+            desc = "Moving/Copying vars"
+
+        progress = ProgressBar(len(var_id_list), desc)
         for var_id in var_id_list:
             progress.inc()
             var = self[var_id]
@@ -310,9 +303,6 @@ class VarDatabaseBase:
                     path.join(var.root_path, var_sub_directory),
                     move=True,
                 )
-
-        if not self.disable_save:
-            self.save()
 
     def dedupe_dependency_list(self, dependencies: set[str]) -> set[str]:
         # If an exact version is needed, we only need the exact reference, it will double as latest

@@ -12,14 +12,15 @@ import PIL
 from PIL import Image
 from PIL import UnidentifiedImageError
 
-from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.enums.variables import MEGABYTE, TEMP_VAR_NAME
+from depmanager.common.enums.config import IMAGE_RESOURCE_DIR
+from depmanager.common.enums.content_type import ContentType
+from depmanager.common.enums.ext import Ext
 from depmanager.common.enums.paths import IMAGE_LIB_DIR
+from depmanager.common.enums.variables import MEGABYTE
+from depmanager.common.enums.variables import TEMP_VAR_NAME
+from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
-from depmanager.common.enums.ext import Ext
-from depmanager.common.enums.content_type import ContentType
-from depmanager.common.enums.config import IMAGE_RESOURCE_DIR
 
 PIL.Image.MAX_IMAGE_PIXELS = 225000000
 
@@ -110,8 +111,8 @@ class VarObjectImageLib:
         elif img_format in ("TIF", "TIFF"):
             try:
                 img.save(buffer, img_format, compression="jpeg", quality=95, optimize=True)
-            except (RuntimeError, OSError):
-                raise ValueError
+            except (RuntimeError, OSError) as exc:
+                raise ValueError from exc
         else:
             img.save(buffer, img_format, quality=95, optimize=True)
         return buffer

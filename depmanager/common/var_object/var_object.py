@@ -6,14 +6,14 @@ from os import path
 from typing import Any
 from zipfile import ZipFile
 
-from depmanager.common.shared.cached_property import cached_property
+from depmanager.common.enums.content_type import ContentType
+from depmanager.common.enums.ext import Ext
 from depmanager.common.enums.variables import MEGABYTE
+from depmanager.common.shared.cached_property import cached_property
+from depmanager.common.shared.json_parser import VarParser
 from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.var_object.var_object_base import VarObjectBase
 from depmanager.common.var_object.var_object_image_lib import VarObjectImageLib
-from depmanager.common.enums.ext import Ext
-from depmanager.common.shared.json_parser import VarParser
-from depmanager.common.enums.content_type import ContentType
 
 
 class VarObject(VarObjectBase, VarObjectImageLib):

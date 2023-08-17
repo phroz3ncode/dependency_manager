@@ -1,12 +1,14 @@
 import os
+from collections import defaultdict
 
-from depmanager.common.shared.console_menu_item import ConsoleMenuItem
-from depmanager.common.enums.variables import MEGABYTE
+from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.methods import OrganizeMethods
 from depmanager.common.enums.paths import TEMP_REPAIR_DIR
+from depmanager.common.enums.variables import MEGABYTE
+from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
+from depmanager.common.shared.console_menu_item import ConsoleMenuItem
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
-from depmanager.common.enums.methods import OrganizeMethods
-from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
 
 
 class MenuMaintenance(BaseActionsMenu):
@@ -22,6 +24,7 @@ class MenuMaintenance(BaseActionsMenu):
                 ConsoleMenuItem("REPAIR - Find and compress vars images", self.find_and_compress),
                 ConsoleMenuItem("FIND what uses var", self.search_that_use),
                 ConsoleMenuItem("FIND low value vars", self.search_low_value),
+                ConsoleMenuItem("FIND texture duplication", self.search_texture),
                 ConsoleMenuItem("TAG unused vars", self.add_unused_var_tags),
                 ConsoleMenuItem("TAG used vars", self.add_used_var_tags),
                 ConsoleMenuItem("TAG vars with suffix from *.dep", self.add_suffix_var_tags),
@@ -143,6 +146,26 @@ class MenuMaintenance(BaseActionsMenu):
                     low_value.append((var_item.info["size"] / MEGABYTE, var_id, var_reqs))
         for var_id in sorted(low_value, reverse=True):
             print(var_id)
+
+    def search_texture(self):
+        self.cache.clear()
+        files = defaultdict(list)
+        files_used_by = defaultdict(list)
+        for var_id, var in self.cache.remote.db.vars.items():
+            for item, size in var.infolist:
+                if Ext.JPG in item or Ext.PNG in item or Ext.TIF in item:
+                    files[item].append(size)
+                    files_used_by[item].append(var_id)
+
+        duplicates = [(sum(f_uses) / MEGABYTE, len(f_uses), f) for f, f_uses in files.items() if len(f_uses) > 1]
+        duplicates = sorted(duplicates, reverse=True)
+        total_duplication = sum(d[0] for d in duplicates)
+        print(f"Total duplication: {total_duplication} MB")
+        for idx, val in enumerate(duplicates):
+            if idx < 100:
+                print(val)
+            else:
+                break
 
     def add_unused_var_tags(self):
         filters = self.get_var_filters()

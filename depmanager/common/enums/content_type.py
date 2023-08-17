@@ -1,8 +1,8 @@
 from os import path
 from typing import Optional
 
-from depmanager.common.shared.tools import is_str_in_substrings
 from depmanager.common.enums.ext import Ext
+from depmanager.common.shared.tools import is_str_in_substrings
 
 
 class ContentType:

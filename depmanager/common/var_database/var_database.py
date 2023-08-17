@@ -8,28 +8,29 @@ from os import path
 
 from orjson import orjson
 
+from depmanager.common.enums.content_type import ContentType
+from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.paths import TEMP_SYNC_DIR
+from depmanager.common.enums.variables import BACKWARDS_COMPAT_PLUGIN_AUTHORS
+from depmanager.common.enums.variables import MEGABYTE
+from depmanager.common.enums.variables import TEMP_VAR_NAME
 from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.enums.variables import MEGABYTE, TEMP_VAR_NAME, BACKWARDS_COMPAT_PLUGIN_AUTHORS
+from depmanager.common.shared.json_parser import VarParser
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import find_fuzzy_file_match
 from depmanager.common.shared.tools import select_fuzzy_match
 from depmanager.common.var_database.var_database_image_db import VarDatabaseImageDB
 from depmanager.common.var_object.var_object import VarObject
-from depmanager.common.enums.ext import Ext
-from depmanager.common.shared.json_parser import VarParser
-from depmanager.common.enums.content_type import ContentType
 
 
 class VarDatabase(VarDatabaseImageDB):
-    def _clear_cache(self):
-        self._clear_attributes(
-            [
-                "vars_required",
-                "required_dependencies",
-                "repair_index",
-            ]
-        )
-        super()._clear_cache()
+    @property
+    def _attributes(self):
+        return [
+            "vars_required",
+            "required_dependencies",
+            "repair_index",
+        ] + super()._attributes
 
     @cached_property
     def vars_required(self) -> defaultdict[str, list]:
@@ -186,6 +187,17 @@ class VarDatabase(VarDatabaseImageDB):
                         var_files.update(lines)
         return var_files
 
+    def get_var_ids_from_sync_folder(self) -> set[str]:
+        deps = set()
+        local_sync_path = os.path.join(self.rootpath, TEMP_SYNC_DIR)
+        if not os.path.exists(local_sync_path):
+            return deps
+
+        for (_, _, files) in os.walk(os.path.join(self.rootpath, TEMP_SYNC_DIR)):
+            for file in files:
+                deps.add(file.replace(Ext.JPG, Ext.EMPTY))
+        return deps
+
     def get_dependencies_list_as_dict(self, dependency_list):
         dependencies = {}
         for dependency in sorted(dependency_list):
@@ -226,18 +238,6 @@ class VarDatabase(VarDatabaseImageDB):
                 missing_vars.add(var_id)
         return missing_vars
 
-    def find_missing_dep_vars(self) -> set[str]:
-        required_dep_vars = self.get_var_ids_from_deps()
-
-        missing_vars = set()
-        # progress = ProgressBar(len(required_dep_vars), "Searching for missing .dep vars")
-        for var in required_dep_vars:
-            # progress.inc()
-            var_name = self.get_var_name(var)
-            if var_name is None:
-                missing_vars.add(var)
-        return missing_vars
-
     def find_unused_vars(self, filters=None, invert=False) -> set[str]:
         # Get the unused vars
         var_list = self.keys - set(self.unique_referenced_dependencies)
@@ -249,43 +249,6 @@ class VarDatabase(VarDatabaseImageDB):
             filters = [f.strip() for f in filters]
             var_list = {v for v in var_list if any(f for f in filters if f in self[v].sub_directory)}
         return set(var_list)
-
-    def find_removed_unused_vars(self, filters=None) -> set[str]:
-        print("Searching for vars that will no longer be used...")
-
-        # Using .items negates the cached_property benefits
-        # pylint: disable=consider-using-dict-items
-        removed_vars = {v for v in self.vars if any(f for f in filters if f in self[v].sub_directory)}
-
-        # Find the vars that are used by the vars being removed
-        used_dependencies = set()
-        for var_id in removed_vars:
-            if len(self[var_id].dependencies) > 0:
-                used_dependencies.update(self[var_id].dependencies)
-        used_dependencies = {self.get_var_name(v, always=True) for v in used_dependencies}
-        used_dependencies_lower = [v.lower() for v in used_dependencies]
-
-        required_vars = {
-            var_id: var_list
-            for var_id, var_list in self.vars_required.items()
-            if var_id.lower() in used_dependencies_lower
-        }
-
-        # Now simulate removing all these vars
-        no_longer_used = set()
-        removed_vars_lower = [v.lower() for v in removed_vars]
-        for var_id, used_by_list in required_vars.items():
-            used_by_list = [v for v in used_by_list if v.lower() not in removed_vars_lower]
-            if len(used_by_list) == 0:
-                no_longer_used.add(var_id)
-
-        # Remove self references
-        no_longer_used = {v for v in no_longer_used if v not in removed_vars}
-
-        # Do not return vars already flagged for removal
-        no_longer_used = {v for v in no_longer_used if "removed" not in self[v].sub_directory}
-
-        return no_longer_used
 
     def find_unoptimized_vars(self):
         var_list = set()
@@ -393,7 +356,10 @@ class VarDatabase(VarDatabaseImageDB):
         if var_package is None:
             return False
 
-        if var_package.var_type.type == ContentType.PLUGIN and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS:
+        if (
+            var_package.var_type.type == ContentType.PLUGIN
+            and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS
+        ):
             return True
 
         return False
@@ -410,7 +376,10 @@ class VarDatabase(VarDatabaseImageDB):
         if var_package is None:
             return False
 
-        if var_package.var_type.type == ContentType.PLUGIN and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS:
+        if (
+            var_package.var_type.type == ContentType.PLUGIN
+            and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS
+        ):
             return False
 
         latest_version = max(self.vars_versions.get(var_package.duplicate_id))

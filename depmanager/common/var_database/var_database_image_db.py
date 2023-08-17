@@ -5,34 +5,27 @@ from os import path
 
 import filedate
 
+from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.paths import IMAGE_LIB_DIR
 from depmanager.common.shared.tools import remove_empty_directories
 from depmanager.common.var_database.var_database_base import VarDatabaseBase
-from depmanager.common.enums.paths import IMAGE_LIB_DIR
-from depmanager.common.enums.ext import Ext
 
 
 class VarDatabaseImageDB(VarDatabaseBase):
-    def __init__(self, root: str = None, image_root: str = None, disable_save: bool = False, quick_scan: bool = False):
-        super().__init__(root, disable_save, quick_scan)
+    def __init__(self, root: str = None, image_root: str = None, quick_scan: bool = False):
+        super().__init__(root, quick_scan)
+        self._images_added_or_removed = False
+
         self.image_root = image_root
         self.image_root_db = "image_lib.zip"
 
-    def refresh(self) -> None:
-        super().refresh()
-        if self.image_db_enabled:
-            self.update_images()
-
     @property
     def image_db_enabled(self) -> bool:
-        return hasattr(self, "image_root")
+        return self.image_root is not None
 
     @property
     def image_db_path(self):
         return path.join(self.rootpath, self.image_root_db)
-
-    @property
-    def image_db_is_remote_only(self):
-        return self.rootpath == self.image_root
 
     @property
     def image_db_local_path(self):
@@ -63,7 +56,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
         return dep
 
     def save_image_db(self) -> None:
-        if not self.image_db_is_remote_only:
+        if self._images_added_or_removed:
             print(f"Saving image database {self.image_db_path}")
             if os.path.exists(self.image_db_path):
                 os.remove(self.image_db_path)
@@ -72,6 +65,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
                     zip_file.write(
                         item, os.path.relpath(item, self.image_db_local_path), compress_type=zipfile.ZIP_STORED
                     )
+            self._images_added_or_removed = False
 
     def save_image_db_as_dep(self):
         print("Saving image database as .dep")
@@ -89,7 +83,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
         files = self.directory_files
         image_files = self.image_files
         if len(files) != len(image_files):
-            if not self.image_db_is_remote_only and path.exists(self.image_db_path):
+            if path.exists(self.image_db_path):
                 with zipfile.ZipFile(self.image_db_path) as zip_file:
                     zip_file.extractall(self.image_db_local_path)
             else:
@@ -114,7 +108,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
                     modified=str(datetime.fromtimestamp(var.info["modified"])),
                 )
 
-    def update_images(self) -> None:
+    def refresh_image_db(self) -> None:
         print("Updating image lib... [Progress bar TBD]")
         self.load_image_db()
         required_image_files = set(path.join(v.sub_directory, f"{v.clean_name}{Ext.JPG}") for _, v in self.vars.items())
@@ -130,4 +124,4 @@ class VarDatabaseImageDB(VarDatabaseBase):
 
         if len(removed_files) > 0 or len(added_files) > 0 or not os.path.exists(self.image_db_path):
             remove_empty_directories(self.image_db_local_path)
-            self.save_image_db()
+            self._images_added_or_removed = True
