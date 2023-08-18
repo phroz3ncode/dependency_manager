@@ -9,6 +9,7 @@ import zipfile
 from collections import defaultdict
 from json import JSONDecodeError
 from os import path
+from typing import Dict
 from typing import Optional
 
 from orjson import orjson
@@ -29,6 +30,12 @@ class VarDatabaseBase(CachedObject):
     EXCLUDE_LIST = ["disabled"]
     APPEARANCE_LIST = ["json", "vap"]
 
+    rootpath: str
+    root_db: str
+    vars: Dict[str, VarObject]
+    quick_scan: bool
+    scanned: bool
+
     def __init__(self, root: str = None, quick_scan: bool = False):
         self._files_added_or_removed = False
 
@@ -36,7 +43,6 @@ class VarDatabaseBase(CachedObject):
         self.root_db = "remote_db.json"
         self.vars = {}
         self.quick_scan = quick_scan
-        self.scanned = False
 
         self.load()
 
@@ -89,7 +95,6 @@ class VarDatabaseBase(CachedObject):
     @cached_property
     def directory_files(self) -> list[tuple[str, float, float]]:
         print("Parallel scanning directories...")
-        self.scanned = True
         files = [
             os.path.join(f[1], f[0])
             for f in list(

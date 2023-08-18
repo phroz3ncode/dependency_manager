@@ -5,6 +5,9 @@ from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
 from depmanager.common.enums.methods import OrganizeMethods
 from depmanager.common.enums.paths import ADDON_PACKAGE_USER_PREFS_DIR
+from depmanager.common.enums.plugins import PLUGIN_BLACKLIST_ENABLE_BY_DEFAULT
+from depmanager.common.enums.plugins import PLUGIN_TEMPLATE_DISABLE
+from depmanager.common.enums.plugins import PLUGIN_TEMPLATE_ENABLE
 from depmanager.common.enums.variables import GIGABYTE
 from depmanager.common.shared.cached_object import CachedObject
 from depmanager.common.shared.cached_property import cached_property
@@ -67,9 +70,8 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
         return self._get_repairable(self.db, filters, include_clothing)
 
     def enable_plugins(self):
-        template = {"pluginsAlwaysEnabled": "true", "pluginsAlwaysDisabled": "false"}
         pref_path = os.path.join(
-            os.path.abspath(os.path.join(self.db.rootpath, "../var_services")),
+            os.path.abspath(os.path.join(self.db.rootpath, "..")),
             ADDON_PACKAGE_USER_PREFS_DIR,
         )
         if not os.path.exists(pref_path):
@@ -78,7 +80,10 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
             if var.var_type.contains_type(ContentType.PLUGIN):
                 file_path = os.path.join(pref_path, f"{var_id}{Ext.PREFS}")
                 with open(file_path, "w", encoding="UTF-8") as write_file:
-                    json.dump(template, write_file, indent=4)
+                    if var.duplicate_id in PLUGIN_BLACKLIST_ENABLE_BY_DEFAULT:
+                        json.dump(PLUGIN_TEMPLATE_DISABLE, write_file, indent=4)
+                    else:
+                        json.dump(PLUGIN_TEMPLATE_ENABLE, write_file, indent=4)
 
     def organize_files(self, mode, filters=None, remove_empty=True):
         if mode == OrganizeMethods.AUTO:
