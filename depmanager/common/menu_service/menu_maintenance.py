@@ -1,5 +1,4 @@
 import os
-import zipfile
 from collections import defaultdict
 
 from depmanager.common.enums.ext import Ext
@@ -99,7 +98,7 @@ class MenuMaintenance(BaseActionsMenu):
                     file_list.append(os.path.join(root, file))
         with ZipWrite(zip_name, compress=False) as zf_dest:
             for item in file_list:
-                zf_dest.write(item, os.path.relpath(item, zip_root_path), compress_type=zipfile.ZIP_DEFLATED)
+                zf_dest.write(item, os.path.relpath(item, zip_root_path))
 
     def add_unused_var_tags(self):
         filters = self.get_var_filters()

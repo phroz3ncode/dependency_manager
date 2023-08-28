@@ -1,5 +1,4 @@
 import os
-import zipfile
 from datetime import datetime
 from os import path
 
@@ -64,9 +63,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
                 os.remove(self.image_db_path)
             with ZipWrite(self.image_db_path, compress=False) as zip_file:
                 for item in self.image_files:
-                    zip_file.write(
-                        item, os.path.relpath(item, self.image_db_local_path), compress_type=zipfile.ZIP_STORED
-                    )
+                    zip_file.write(item, os.path.relpath(item, self.image_db_local_path))
             self._images_added_or_removed = False
 
     def save_image_db_as_dep(self):

@@ -1,7 +1,6 @@
 import io
 import json
 import os
-import zipfile
 from collections import defaultdict
 from json import JSONDecodeError
 from os import path
@@ -313,9 +312,9 @@ class VarDatabase(VarDatabaseImageDB):
                         ]
                         meta["dependencies"] = self.get_dependencies_list_as_dict(var_obj.used_dependencies_sorted)
                         meta_data = orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8")
-                        zf_dest.writestr(item.filename, meta_data, zipfile.ZIP_DEFLATED)
+                        zf_dest.writestr(item.filename, meta_data)
                 else:
-                    zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename))
 
         if failed:
             os.remove(temp_file)
@@ -636,13 +635,12 @@ class VarDatabase(VarDatabaseImageDB):
                         zf_dest.writestr(
                             "meta.json",
                             orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8"),
-                            zipfile.ZIP_DEFLATED,
                         )
                         continue
 
                 # Copy unfixable files directly
                 if item.filename not in var_obj.json_like_files:
-                    zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename))
                     continue
 
                 # Read and attempt to repair any readable files
@@ -662,10 +660,10 @@ class VarDatabase(VarDatabaseImageDB):
                                 )
 
                     write_data = orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode("UTF-8")
-                    zf_dest.writestr(item.filename, write_data, zipfile.ZIP_DEFLATED)
+                    zf_dest.writestr(item.filename, write_data)
                 except JSONDecodeError as err:
                     print(f"JSONDecodeError: {item.filename} >> {err}")
-                    zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename))
                     json_errors_during_repair = True
 
         if json_errors_during_repair:
