@@ -8,6 +8,7 @@ from depmanager.common.enums.paths import TEMP_REPAIR_DIR
 from depmanager.common.enums.variables import MEGABYTE
 from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
+from depmanager.common.shared.ziptools import ZipWrite
 
 
 class MenuMaintenance(BaseActionsMenu):
@@ -25,6 +26,7 @@ class MenuMaintenance(BaseActionsMenu):
                 ConsoleMenuItem("FIND what uses var", self.search_that_use),
                 ConsoleMenuItem("FIND low value vars", self.search_low_value),
                 ConsoleMenuItem("FIND texture duplication", self.search_texture),
+                ConsoleMenuItem("Repair duplication", self.repair_duplication),
             ],
         )
 
@@ -50,6 +52,14 @@ class MenuMaintenance(BaseActionsMenu):
             if not repaired:
                 continue
             self.cache.remote.db.repair_metadata(var_ref)
+
+    def repair_duplication(self):
+        # filters = self.get_var_filters()
+
+        self.cache.remote.refresh()
+
+        var_to_process = set()
+        var_to_process.update(self.cache.remote.db.find_duplication_in_vars())
 
     def backup_local_settings(self):
         root_path = os.path.abspath(os.path.join(self.cache.local.path, "../var_services"))
@@ -87,7 +97,7 @@ class MenuMaintenance(BaseActionsMenu):
             for file in files:
                 if file not in exclude_files:
                     file_list.append(os.path.join(root, file))
-        with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zf_dest:
+        with ZipWrite(zip_name, compress=False) as zf_dest:
             for item in file_list:
                 zf_dest.write(item, os.path.relpath(item, zip_root_path), compress_type=zipfile.ZIP_DEFLATED)
 

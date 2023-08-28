@@ -5,7 +5,6 @@ from io import BytesIO
 from os import path
 from typing import Optional
 from zipfile import ZIP_DEFLATED
-from zipfile import ZipFile
 
 import imagequant
 import PIL
@@ -21,6 +20,8 @@ from depmanager.common.enums.variables import TEMP_VAR_NAME
 from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import are_substrings_in_str
+from depmanager.common.shared.ziptools import ZipRead
+from depmanager.common.shared.ziptools import ZipReadInto
 
 PIL.Image.MAX_IMAGE_PIXELS = 225000000
 
@@ -184,33 +185,32 @@ class VarObjectImageLib:
         image_bytes_post = 0
         images_updated = False
         temp_file = path.join(self.directory, TEMP_VAR_NAME)
-        with ZipFile(temp_file, "w", ZIP_DEFLATED) as zf_dest:
-            with ZipFile(self.file_path, "r") as zf_src:
-                progress = ProgressBar(len(zf_src.infolist()), description=f"COMPRESSING: {self.clean_name}")
-                for item in zf_src.infolist():
-                    progress.inc()
-                    if item.filename in self.removable_image_files:
-                        print(f"REMOVED {self.clean_name}: {item.filename}")
-                        continue
-                    if item.filename in self.clothing_image_files or item.filename in self.texture_image_files:
-                        try:
-                            image_data = zf_src.read(item.filename)
-                            image_data_size = io.BytesIO(image_data).getbuffer().nbytes
-                            image_bytes_pre += image_data_size
+        with ZipReadInto(self.file_path, temp_file) as (zf_src, zf_dest):
+            progress = ProgressBar(len(zf_src.infolist()), description=f"COMPRESSING: {self.clean_name}")
+            for item in zf_src.infolist():
+                progress.inc()
+                if item.filename in self.removable_image_files:
+                    print(f"REMOVED {self.clean_name}: {item.filename}")
+                    continue
+                if item.filename in self.clothing_image_files or item.filename in self.texture_image_files:
+                    try:
+                        image_data = zf_src.read(item.filename)
+                        image_data_size = io.BytesIO(image_data).getbuffer().nbytes
+                        image_bytes_pre += image_data_size
 
-                            image_write = self._compress_image_if_possible(image_data, item.filename, png_only=png_only)
-                            if image_write is not None:
-                                image_bytes_post += image_write.getbuffer().nbytes
-                                images_updated = True
-                                print(f"UPDATED {self.clean_name}: {item.filename}")
-                                zf_dest.writestr(item.filename, image_write.getvalue(), ZIP_DEFLATED)
-                            else:
-                                image_bytes_post += image_data_size
-                                zf_dest.writestr(item.filename, zf_src.read(item.filename), ZIP_DEFLATED)
-                        except UnidentifiedImageError:
+                        image_write = self._compress_image_if_possible(image_data, item.filename, png_only=png_only)
+                        if image_write is not None:
+                            image_bytes_post += image_write.getbuffer().nbytes
+                            images_updated = True
+                            print(f"UPDATED {self.clean_name}: {item.filename}")
+                            zf_dest.writestr(item.filename, image_write.getvalue(), ZIP_DEFLATED)
+                        else:
+                            image_bytes_post += image_data_size
                             zf_dest.writestr(item.filename, zf_src.read(item.filename), ZIP_DEFLATED)
-                    else:
+                    except UnidentifiedImageError:
                         zf_dest.writestr(item.filename, zf_src.read(item.filename), ZIP_DEFLATED)
+                else:
+                    zf_dest.writestr(item.filename, zf_src.read(item.filename), ZIP_DEFLATED)
 
         print("")
         if images_updated:
@@ -233,10 +233,10 @@ class VarObjectImageLib:
 
     def get_image(self, image_name, image_format) -> Image.Image:
         try:
-            with ZipFile(self.file_path, "r") as zf_src:
+            with ZipRead(self.file_path) as zf_src:
                 image_data = zf_src.read(f"{image_name}{image_format}")
         except KeyError:
-            with ZipFile(self.file_path, "r") as zf_src:
+            with ZipRead(self.file_path) as zf_src:
                 image_data = zf_src.read(f"{image_name}{image_format.upper()}")
 
         stream = BytesIO(image_data)

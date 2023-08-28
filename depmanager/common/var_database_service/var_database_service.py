@@ -67,7 +67,7 @@ class VarDatabaseService:
         if not self.var_config.is_admin:
             print("WARNING: Files will be copied instead of symlinked. Run as admin to enable symlinks.")
 
-        self.remote.refresh()
+        # self.remote.refresh()
         self.local.clear()
         remote_present_ids, _ = self.get_remote_present_and_missing_ids()
         if len(remote_present_ids) == 0:
@@ -95,7 +95,7 @@ class VarDatabaseService:
             print("WARNING: Remote and local path are the same. Cannot update local missing.")
             return
 
-        self.remote.db.refresh()
+        # self.remote.db.refresh()
         self.local.clear()
         new_var_ids = self.local.db.keys - self.remote.db.keys
 

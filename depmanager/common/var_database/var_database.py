@@ -19,6 +19,7 @@ from depmanager.common.shared.json_parser import VarParser
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import find_fuzzy_file_match
 from depmanager.common.shared.tools import select_fuzzy_match
+from depmanager.common.shared.ziptools import ZipReadInto
 from depmanager.common.var_database.var_database_image_db import VarDatabaseImageDB
 from depmanager.common.var_object.var_object import VarObject
 
@@ -164,6 +165,9 @@ class VarDatabase(VarDatabaseImageDB):
         # Extract the includes only and convert to lower, drop the sort keys
         return [(item[0], item[1], item[2]) for sublist in indexes for item in sublist[5]]
 
+    def duplication_index(self):
+        return [item for item in self.repair_index if self.vars[item[0]].var_type.is_asset]
+
     def display_var_list(self, var_id_list, prefix, show_used_by=False) -> None:
         if len(var_id_list) > 0:
             for var in sorted(var_id_list):
@@ -265,6 +269,24 @@ class VarDatabase(VarDatabaseImageDB):
                 var_list.add(var_id)
         return var_list
 
+    def find_duplication_in_vars(self):
+        var_list = set()
+        progress = ProgressBar(len(self.keys), description="Searching duplication in vars")
+        duplication_index = self.duplication_index()
+        for var_id, var in self.vars.items():
+            progress.inc()
+            # Do not attempt to de-duplicate core assets, these should be ground truth sources
+            if var.var_type.is_asset:
+                continue
+            self_packages = var.used_packages.get("SELF")
+            if self_packages is None:
+                continue
+            for self_package in self_packages:
+                result = next((index for index in duplication_index if index[1].lower() == self_package), None)
+                if result is not None:
+                    var_list.add(var_id)
+        return var_list
+
     def repair_metadata(self, var_ref: VarObject):
 
         print(f"CHECKING METADATA {var_ref.var_id}...")
@@ -280,21 +302,20 @@ class VarDatabase(VarDatabaseImageDB):
         print(f"OPTIMIZING {var_obj.var_id}... {action}")
 
         temp_file = path.join(var_obj.directory, TEMP_VAR_NAME)
-        with zipfile.ZipFile(temp_file, "w", zipfile.ZIP_DEFLATED) as zf_dest:
-            with zipfile.ZipFile(var_obj.file_path, "r") as read_zf:
-                for item in read_zf.infolist():
-                    if item.filename == "meta.json":
-                        with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
-                            meta = json.loads(read_item.read())
-                            # Fix the contentList
-                            meta["contentList"] = [
-                                r for r in var_obj.namelist if r != "meta.json" and len(path.splitext(r)[1]) > 1
-                            ]
-                            meta["dependencies"] = self.get_dependencies_list_as_dict(var_obj.used_dependencies_sorted)
-                            meta_data = orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8")
-                            zf_dest.writestr(item.filename, meta_data, zipfile.ZIP_DEFLATED)
-                    else:
-                        zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+        with ZipReadInto(var_obj.file_path, temp_file) as (read_zf, zf_dest):
+            for item in read_zf.infolist():
+                if item.filename == "meta.json":
+                    with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
+                        meta = json.loads(read_item.read())
+                        # Fix the contentList
+                        meta["contentList"] = [
+                            r for r in var_obj.namelist if r != "meta.json" and len(path.splitext(r)[1]) > 1
+                        ]
+                        meta["dependencies"] = self.get_dependencies_list_as_dict(var_obj.used_dependencies_sorted)
+                        meta_data = orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8")
+                        zf_dest.writestr(item.filename, meta_data, zipfile.ZIP_DEFLATED)
+                else:
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
 
         if failed:
             os.remove(temp_file)
@@ -590,65 +611,62 @@ class VarDatabase(VarDatabaseImageDB):
                 print(f"{var_obj.var_id}: WILL REMOVE {check_value}")
 
         if removing_files:
+            if remove_skip:
+                print("Skipping file as removals required...")
+                return False
             if remove_confirm:
                 confirm = input("Do you want to continue repairing this var? (y/n) ")
                 if confirm.lower() != "y":
                     return False
-            if remove_skip:
-                print("Skipping file as removals required...")
-                return False
 
         if not repairable:
             print(f"{var_obj.var_id} >> Repairs not supported for issues in this var")
             return False
 
         temp_file = path.join(var_obj.directory, TEMP_VAR_NAME)
-        with zipfile.ZipFile(temp_file, "w", zipfile.ZIP_DEFLATED) as zf_dest:
-            with zipfile.ZipFile(var_obj.file_path, "r") as read_zf:
-                for item in read_zf.infolist():
-                    if item.filename == "meta.json":
-                        with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
-                            meta = json.loads(read_item.read())
-                            meta["contentList"] = [
-                                r for r in read_zf.namelist() if r != "meta.json" and len(path.splitext(r)[1]) > 1
-                            ]
-                            meta["dependencies"] = self.get_dependencies_list_as_dict(replacement_used_packages)
-                            zf_dest.writestr(
-                                "meta.json",
-                                orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8"),
-                                zipfile.ZIP_DEFLATED,
-                            )
-                            continue
-
-                    # Copy unfixable files directly
-                    if item.filename not in var_obj.json_like_files:
-                        zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+        with ZipReadInto(var_obj.file_path, temp_file) as (read_zf, zf_dest):
+            for item in read_zf.infolist():
+                if item.filename == "meta.json":
+                    with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
+                        meta = json.loads(read_item.read())
+                        meta["contentList"] = [
+                            r for r in read_zf.namelist() if r != "meta.json" and len(path.splitext(r)[1]) > 1
+                        ]
+                        meta["dependencies"] = self.get_dependencies_list_as_dict(replacement_used_packages)
+                        zf_dest.writestr(
+                            "meta.json",
+                            orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8"),
+                            zipfile.ZIP_DEFLATED,
+                        )
                         continue
 
-                    # Read and attempt to repair any readable files
-                    try:
-                        with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
-                            contents = VarParser.replace(read_item.readlines(), replacement_mappings)
-                        json_data = json.loads("".join(contents))
+                # Copy unfixable files directly
+                if item.filename not in var_obj.json_like_files:
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+                    continue
 
-                        if len(null_elems) > 0:
-                            if "storables" in json_data:
-                                json_data = VarParser.remove_from_atom(json_data, null_elems)
-                            elif "atoms" in json_data:
-                                person_atoms = [
-                                    i for i, item in enumerate(json_data["atoms"]) if item["type"] == "Person"
-                                ]
-                                for person_atom in person_atoms:
-                                    json_data["atoms"][person_atom] = VarParser.remove_from_atom(
-                                        json_data["atoms"][person_atom], null_elems
-                                    )
+                # Read and attempt to repair any readable files
+                try:
+                    with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
+                        contents = VarParser.replace(read_item.readlines(), replacement_mappings)
+                    json_data = json.loads("".join(contents))
 
-                        write_data = orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode("UTF-8")
-                        zf_dest.writestr(item.filename, write_data, zipfile.ZIP_DEFLATED)
-                    except JSONDecodeError as err:
-                        print(f"JSONDecodeError: {item.filename} >> {err}")
-                        zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
-                        json_errors_during_repair = True
+                    if len(null_elems) > 0:
+                        if "storables" in json_data:
+                            json_data = VarParser.remove_from_atom(json_data, null_elems)
+                        elif "atoms" in json_data:
+                            person_atoms = [i for i, item in enumerate(json_data["atoms"]) if item["type"] == "Person"]
+                            for person_atom in person_atoms:
+                                json_data["atoms"][person_atom] = VarParser.remove_from_atom(
+                                    json_data["atoms"][person_atom], null_elems
+                                )
+
+                    write_data = orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode("UTF-8")
+                    zf_dest.writestr(item.filename, write_data, zipfile.ZIP_DEFLATED)
+                except JSONDecodeError as err:
+                    print(f"JSONDecodeError: {item.filename} >> {err}")
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+                    json_errors_during_repair = True
 
         if json_errors_during_repair:
             os.remove(temp_file)

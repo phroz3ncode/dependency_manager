@@ -135,6 +135,10 @@ class ContentType:
         return self.contains_ref.get(check_type, False)
 
     @property
+    def is_asset(self):
+        return self.type in (self.types_asset + self.types_unity)
+
+    @property
     def is_repairable(self):
         return self.type in self.types_with_json
 

@@ -28,7 +28,6 @@ class MenuMain(BaseActionsMenu):
     def organize_local_to_remote(self):
         filters = self.get_var_filters()
         self.cache.auto_organize_local_files_to_remote(filters=filters)
-        self.cache.clear()
 
     def organize_with_image_lib(self):
         self.cache.remote.db.refresh()

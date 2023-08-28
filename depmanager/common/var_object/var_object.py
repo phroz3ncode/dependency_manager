@@ -4,7 +4,6 @@ from io import TextIOWrapper
 from json import JSONDecodeError
 from os import path
 from typing import Any
-from zipfile import ZipFile
 
 from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
@@ -12,6 +11,7 @@ from depmanager.common.enums.variables import MEGABYTE
 from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.json_parser import VarParser
 from depmanager.common.shared.tools import are_substrings_in_str
+from depmanager.common.shared.ziptools import ZipRead
 from depmanager.common.var_object.var_object_base import VarObjectBase
 from depmanager.common.var_object.var_object_image_lib import VarObjectImageLib
 
@@ -69,7 +69,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
 
     @cached_property
     def _var_raw_data(self) -> dict[str, Any]:
-        with ZipFile(self.file_path, "r") as read_zf:
+        with ZipRead(self.file_path) as read_zf:
             # Load the infolist (file names and sizes)
             infolist = [(val.filename, val.file_size) for val in read_zf.infolist()]
 
@@ -104,15 +104,13 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         current_subdir = self.sub_directory
         if self.is_versioned:
             return current_subdir
-        if self.is_required:
-            return current_subdir
-        if self.is_vamx:
-            return self.var_type.DIR_VAMX
         if self.is_custom:
             return self.var_type.DIR_CUSTOM
         if self.var_type.type in self.var_type.types_with_json:
             if are_substrings_in_str(current_subdir, [ContentType.DIR_SCENE, ContentType.DIR_LOOK]):
                 return current_subdir
+        elif self.var_type.type in current_subdir:
+            return current_subdir
         return self.var_type.type_subdirectory
 
     @cached_property

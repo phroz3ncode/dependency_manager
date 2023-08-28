@@ -8,6 +8,8 @@ import filedate
 from depmanager.common.enums.ext import Ext
 from depmanager.common.enums.paths import IMAGE_LIB_DIR
 from depmanager.common.shared.tools import remove_empty_directories
+from depmanager.common.shared.ziptools import ZipRead
+from depmanager.common.shared.ziptools import ZipWrite
 from depmanager.common.var_database.var_database_base import VarDatabaseBase
 
 
@@ -60,7 +62,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
             print(f"Saving image database {self.image_db_path}")
             if os.path.exists(self.image_db_path):
                 os.remove(self.image_db_path)
-            with zipfile.ZipFile(self.image_db_path, "w", zipfile.ZIP_STORED) as zip_file:
+            with ZipWrite(self.image_db_path, compress=False) as zip_file:
                 for item in self.image_files:
                     zip_file.write(
                         item, os.path.relpath(item, self.image_db_local_path), compress_type=zipfile.ZIP_STORED
@@ -84,7 +86,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
         image_files = self.image_files
         if len(files) != len(image_files):
             if path.exists(self.image_db_path):
-                with zipfile.ZipFile(self.image_db_path) as zip_file:
+                with ZipRead(self.image_db_path) as zip_file:
                     zip_file.extractall(self.image_db_local_path)
             else:
                 os.makedirs(self.image_db_local_path, exist_ok=True)
