@@ -1,5 +1,6 @@
 import json
 import os
+from typing import List
 
 from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
@@ -17,10 +18,11 @@ from depmanager.common.var_database_service.database_service_tools import Databa
 
 
 class DatabaseService(CachedObject, DatabaseServiceTools):
-    def __init__(self, root, image_root=None, quick_scan=False):
+    def __init__(self, root: str, image_root: str = None, quick_scan: bool = False, favorites: List[str] = None):
         self.root = root
         self.image_root = image_root
         self.quick_scan = quick_scan
+        self.favorites = favorites
 
     @property
     def _attributes(self):
@@ -29,7 +31,7 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
     @cached_property
     # pylint: disable=invalid-name
     def db(self) -> VarDatabase:
-        return VarDatabase(self.root, image_root=self.image_root, quick_scan=self.quick_scan)
+        return VarDatabase(self.root, image_root=self.image_root, quick_scan=self.quick_scan, favorites=self.favorites)
 
     def refresh(self):
         self.db.refresh()

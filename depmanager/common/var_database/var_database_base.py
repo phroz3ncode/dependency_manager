@@ -10,6 +10,7 @@ from collections import defaultdict
 from json import JSONDecodeError
 from os import path
 from typing import Dict
+from typing import List
 from typing import Optional
 
 from orjson import orjson
@@ -36,13 +37,14 @@ class VarDatabaseBase(CachedObject):
     quick_scan: bool
     scanned: bool
 
-    def __init__(self, root: str = None, quick_scan: bool = False):
+    def __init__(self, root: str = None, quick_scan: bool = False, favorites: List[str] = None):
         self._files_added_or_removed = False
 
         self.rootpath = root
         self.root_db = "remote_db.json"
         self.vars = {}
         self.quick_scan = quick_scan
+        self.favorites = favorites if favorites else []
 
         self.load()
 
@@ -150,6 +152,7 @@ class VarDatabaseBase(CachedObject):
                     data = json.load(read_db_file)
                     for item in data["vars"]:
                         var = VarObject.from_dict(data=item, root_path=self.rootpath)
+                        var.tag_as_favorite(self.favorites)
                         self[var.var_id] = var
             except JSONDecodeError:
                 self.refresh()
@@ -200,6 +203,7 @@ class VarDatabaseBase(CachedObject):
     def update_var(self, file_path):
         try:
             var = VarObject(root_path=self.rootpath, file_path=file_path, quick_scan=self.quick_scan)
+            var.tag_as_favorite(self.favorites)
             self[var.var_id] = var
             self._files_added_or_removed = True
         except (ValueError, KeyError, PermissionError, zipfile.BadZipfile) as err:

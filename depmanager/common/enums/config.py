@@ -2,6 +2,7 @@ import ctypes
 import json
 import os
 import sys
+from typing import List
 
 # pylint: disable=protected-access
 IMAGE_RESOURCE_DIR = sys._MEIPASS if hasattr(sys, "_MEIPASS") else "resources"
@@ -15,11 +16,7 @@ class Config:
         "repair_on_import": True,
         "repair_auto_skip_on_missing": False,
         "repair_auto_fix_on_missing": False,
-        "favorites": {
-            "assets": [],
-            "looks": [],
-            "scenes": [],
-        },
+        "favorites": [],
     }
 
     def __init__(self):
@@ -92,5 +89,5 @@ class Config:
         return self.config.get("repair_auto_fix_on_missing", False)
 
     @property
-    def favorites(self) -> dict[str, list[str]]:
+    def favorites(self) -> List[str]:
         return self.config["favorites"]

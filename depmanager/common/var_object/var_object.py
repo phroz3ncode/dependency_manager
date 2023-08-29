@@ -4,9 +4,11 @@ from io import TextIOWrapper
 from json import JSONDecodeError
 from os import path
 from typing import Any
+from typing import List
 
 from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.paths import FAVORITE
 from depmanager.common.enums.variables import MEGABYTE
 from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.json_parser import VarParser
@@ -40,6 +42,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         self.used_packages = used_packages if used_packages is not None else self._var_raw_data["used_packages"]
         self.contains = contains if contains is not None else ContentType.ref_from_namelist(self.namelist)
         self.var_type = ContentType(self.contains)
+        self.is_favorite = False
 
     def to_dict(self):
         return {
@@ -109,9 +112,16 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         if self.var_type.type in self.var_type.types_with_json:
             if are_substrings_in_str(current_subdir, [ContentType.DIR_SCENE, ContentType.DIR_LOOK]):
                 return current_subdir
-        elif self.var_type.type in current_subdir:
+        elif self.is_favorite and FAVORITE in current_subdir and self.var_type.type in current_subdir:
             return current_subdir
-        return self.var_type.type_subdirectory
+        elif not self.is_favorite and self.var_type.type in current_subdir:
+            return current_subdir
+
+        preferred_subdirectory = self.var_type.type_subdirectory
+        if self.is_favorite:
+            preferred_subdirectory = f"{preferred_subdirectory}_{FAVORITE}"
+
+        return preferred_subdirectory
 
     @cached_property
     def incorrect_subdirectory(self) -> bool:
@@ -203,3 +213,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
                 required_dependencies.update(self._scan_keys_from_dict(value["dependencies"]))
             required_dependencies.add(key)
         return required_dependencies
+
+    def tag_as_favorite(self, favorites: List[str]):
+        if self.author in favorites:
+            self.is_favorite = True

@@ -9,7 +9,9 @@ class VarDatabaseService:
     def __init__(self, var_config: Config):
         self.var_config = var_config
         self.local = DatabaseService(root=self.var_config.local_path, quick_scan=True)
-        self.remote = DatabaseService(root=self.var_config.remote_path, image_root=self.var_config.local_path)
+        self.remote = DatabaseService(
+            root=self.var_config.remote_path, image_root=self.var_config.local_path, favorites=self.var_config.favorites
+        )
 
     def clear(self):
         self.local.clear()
