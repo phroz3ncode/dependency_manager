@@ -61,8 +61,8 @@ class MenuMaintenance(BaseActionsMenu):
         var_to_process.update(self.cache.remote.db.find_duplication_in_vars())
 
     def backup_local_settings(self):
-        root_path = os.path.abspath(os.path.join(self.cache.local.path, "../var_services"))
-        zip_root_path = os.path.abspath(os.path.join(root_path, "../var_services"))
+        root_path = os.path.abspath(os.path.join(self.cache.local.path, ".."))
+        zip_root_path = os.path.abspath(os.path.join(root_path, ".."))
 
         zip_name = os.path.join(root_path, "vam_custom.zip")
         if os.path.exists(zip_name):

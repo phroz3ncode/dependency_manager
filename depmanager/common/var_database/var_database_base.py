@@ -293,7 +293,7 @@ class VarDatabaseBase(CachedObject):
             # Add sub_directory to the current sub_directory if not present
             elif append:
                 if sub_directory not in var.sub_directory:
-                    var_sub_directory = f"{sub_directory}{var.sub_directory}"
+                    var_sub_directory = f"{sub_directory}_{var.sub_directory}"
             elif suffix:
                 if sub_directory not in var.sub_directory:
                     var_sub_directory = f"{var.sub_directory}_{sub_directory}"

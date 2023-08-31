@@ -92,16 +92,16 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
             self.db.manipulate_file_list(self.db.keys, sub_directory="AUTO", desc="Auto organizing vars")
         elif mode == OrganizeMethods.ADD_UNUSED_TAG:
             var_list = self.get_unused(filters)
-            self.db.manipulate_file_list(var_list, "unused_", append=True, desc="Tagging unused vars")
+            self.db.manipulate_file_list(var_list, "unused", suffix=True, desc="Tagging unused vars")
         elif mode == OrganizeMethods.REMOVE_UNUSED_TAG:
             var_list = self.get_unused(filters)
-            self.db.manipulate_file_list(var_list, "unused_", remove=True, desc="Untagging unused vars")
+            self.db.manipulate_file_list(var_list, "unused", remove=True, desc="Untagging unused vars")
         elif mode == OrganizeMethods.ADD_USED_TAG:
             var_list = self.get_used(filters)
-            self.db.manipulate_file_list(var_list, "used_", append=True, desc="Tagging used vars")
+            self.db.manipulate_file_list(var_list, "used", suffix=True, desc="Tagging used vars")
         elif mode == OrganizeMethods.REMOVE_USED_TAG:
             var_list = self.get_used(filters)
-            self.db.manipulate_file_list(var_list, "used_", remove=True, desc="Untagging used vars")
+            self.db.manipulate_file_list(var_list, "used", remove=True, desc="Untagging used vars")
             self.db.manipulate_file_list(var_list, "removed")
         elif mode == OrganizeMethods.TO_VERSIONED:
             self.db.manipulate_file_list(self.duplicates, "_versioned", desc="Versioning duplicate vars")

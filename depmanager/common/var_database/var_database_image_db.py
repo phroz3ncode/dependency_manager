@@ -57,6 +57,9 @@ class VarDatabaseImageDB(VarDatabaseBase):
                 dep[file.replace(Ext.JPG, Ext.EMPTY)] = path.relpath(dir_path, self.image_db_local_path)
         return dep
 
+    def image_changes(self):
+        self._images_added_or_removed = True
+
     def save_image_db(self) -> None:
         if self._images_added_or_removed:
             print(f"Saving image database {self.image_db_path}")

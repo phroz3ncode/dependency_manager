@@ -47,6 +47,7 @@ class MenuMain(BaseActionsMenu):
                 )
             elif var_item.sub_directory != new_subdir:
                 print(f"Moving {var_id}: {var_item.sub_directory} to {new_subdir}")
+                self.cache.remote.db.image_changes()
                 self.cache.remote.db.manipulate_file(
                     var_id,
                     os.path.join(var_item.root_path, new_subdir),
@@ -54,4 +55,5 @@ class MenuMain(BaseActionsMenu):
                 )
 
         self.cache.remote.db.save()
+        self.cache.remote.db.refresh_image_db()
         self.cache.remote.db.save_image_db()
