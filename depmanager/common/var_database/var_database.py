@@ -1,37 +1,38 @@
 import io
 import json
 import os
-import zipfile
 from collections import defaultdict
 from json import JSONDecodeError
 from os import path
+from typing import Set
+from typing import Tuple
 
 from orjson import orjson
 
+from depmanager.common.enums.content_type import ContentType
+from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.paths import TEMP_SYNC_DIR
+from depmanager.common.enums.variables import BACKWARDS_COMPAT_PLUGIN_AUTHORS
+from depmanager.common.enums.variables import MEGABYTE
+from depmanager.common.enums.variables import TEMP_VAR_NAME
 from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.shared.enums import MEGABYTE
+from depmanager.common.shared.json_parser import VarParser
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import find_fuzzy_file_match
 from depmanager.common.shared.tools import select_fuzzy_match
-from depmanager.common.var_services.databases.var_database_image_db import VarDatabaseImageDB
-from depmanager.common.var_services.entities.var_object import VarObject
-from depmanager.common.var_services.enums import BACKWARDS_COMPAT_PLUGIN_AUTHORS
-from depmanager.common.var_services.enums import TEMP_VAR_NAME
-from depmanager.common.var_services.enums import Ext
-from depmanager.common.var_services.utils.var_parser import VarParser
-from depmanager.common.var_services.utils.var_type import VarType
+from depmanager.common.shared.ziptools import ZipReadInto
+from depmanager.common.var_database.var_database_image_db import VarDatabaseImageDB
+from depmanager.common.var_object.var_object import VarObject
 
 
 class VarDatabase(VarDatabaseImageDB):
-    def _clear_cache(self):
-        self._clear_attributes(
-            [
-                "vars_required",
-                "required_dependencies",
-                "repair_index",
-            ]
-        )
-        super()._clear_cache()
+    @property
+    def _attributes(self):
+        return [
+            "vars_required",
+            "required_dependencies",
+            "repair_index",
+        ] + super()._attributes
 
     @cached_property
     def vars_required(self) -> defaultdict[str, list]:
@@ -134,7 +135,7 @@ class VarDatabase(VarDatabaseImageDB):
         """Builds a repair index
 
         We sort by the following:
-            - VarType.REFERENCE_PRIORITY (this is how likely the item is to be a base reference, not part of a scene)
+            - ContentType.REFERENCE_PRIORITY (this is how likely the item is to be a base reference, not part of a scene)
             - Is the item used as a reference by other vars? If so it is preferred to an unused item
             - Name of the var (if the name is a well known resource maker, we append a . to bubble them to the top)
             - Version (we prioritize newer versions over old versions, so the sort version is 10000 - version)
@@ -165,6 +166,9 @@ class VarDatabase(VarDatabaseImageDB):
         # Extract the includes only and convert to lower, drop the sort keys
         return [(item[0], item[1], item[2]) for sublist in indexes for item in sublist[5]]
 
+    def duplication_index(self):
+        return [item for item in self.repair_index if self.vars[item[0]].var_type.is_asset]
+
     def display_var_list(self, var_id_list, prefix, show_used_by=False) -> None:
         if len(var_id_list) > 0:
             for var in sorted(var_id_list):
@@ -187,6 +191,17 @@ class VarDatabase(VarDatabaseImageDB):
                         lines = [line.rstrip().replace(Ext.VAR, Ext.EMPTY) for line in file]
                         var_files.update(lines)
         return var_files
+
+    def get_var_ids_from_sync_folder(self) -> set[str]:
+        deps = set()
+        local_sync_path = os.path.join(self.rootpath, TEMP_SYNC_DIR)
+        if not os.path.exists(local_sync_path):
+            return deps
+
+        for (_, _, files) in os.walk(os.path.join(self.rootpath, TEMP_SYNC_DIR)):
+            for file in files:
+                deps.add(file.replace(Ext.JPG, Ext.EMPTY))
+        return deps
 
     def get_dependencies_list_as_dict(self, dependency_list):
         dependencies = {}
@@ -228,21 +243,11 @@ class VarDatabase(VarDatabaseImageDB):
                 missing_vars.add(var_id)
         return missing_vars
 
-    def find_missing_dep_vars(self) -> set[str]:
-        required_dep_vars = self.get_var_ids_from_deps()
-
-        missing_vars = set()
-        # progress = ProgressBar(len(required_dep_vars), "Searching for missing .dep vars")
-        for var in required_dep_vars:
-            # progress.inc()
-            var_name = self.get_var_name(var)
-            if var_name is None:
-                missing_vars.add(var)
-        return missing_vars
-
     def find_unused_vars(self, filters=None, invert=False) -> set[str]:
         # Get the unused vars
+        favorites = set(key for key, var in self.vars.items() if var.is_favorite)
         var_list = self.keys - set(self.unique_referenced_dependencies)
+        var_list = var_list - favorites
         if invert:
             var_list = self.keys - var_list
         if filters is not None:
@@ -251,43 +256,6 @@ class VarDatabase(VarDatabaseImageDB):
             filters = [f.strip() for f in filters]
             var_list = {v for v in var_list if any(f for f in filters if f in self[v].sub_directory)}
         return set(var_list)
-
-    def find_removed_unused_vars(self, filters=None) -> set[str]:
-        print("Searching for vars that will no longer be used...")
-
-        # Using .items negates the cached_property benefits
-        # pylint: disable=consider-using-dict-items
-        removed_vars = {v for v in self.vars if any(f for f in filters if f in self[v].sub_directory)}
-
-        # Find the vars that are used by the vars being removed
-        used_dependencies = set()
-        for var_id in removed_vars:
-            if len(self[var_id].dependencies) > 0:
-                used_dependencies.update(self[var_id].dependencies)
-        used_dependencies = {self.get_var_name(v, always=True) for v in used_dependencies}
-        used_dependencies_lower = [v.lower() for v in used_dependencies]
-
-        required_vars = {
-            var_id: var_list
-            for var_id, var_list in self.vars_required.items()
-            if var_id.lower() in used_dependencies_lower
-        }
-
-        # Now simulate removing all these vars
-        no_longer_used = set()
-        removed_vars_lower = [v.lower() for v in removed_vars]
-        for var_id, used_by_list in required_vars.items():
-            used_by_list = [v for v in used_by_list if v.lower() not in removed_vars_lower]
-            if len(used_by_list) == 0:
-                no_longer_used.add(var_id)
-
-        # Remove self references
-        no_longer_used = {v for v in no_longer_used if v not in removed_vars}
-
-        # Do not return vars already flagged for removal
-        no_longer_used = {v for v in no_longer_used if "removed" not in self[v].sub_directory}
-
-        return no_longer_used
 
     def find_unoptimized_vars(self):
         var_list = set()
@@ -302,6 +270,24 @@ class VarDatabase(VarDatabaseImageDB):
             # we can ensure that everything is brought down properly.
             if var.dependencies_sorted != var.used_dependencies_sorted:
                 var_list.add(var_id)
+        return var_list
+
+    def find_duplication_in_vars(self):
+        var_list = set()
+        progress = ProgressBar(len(self.keys), description="Searching duplication in vars")
+        duplication_index = self.duplication_index()
+        for var_id, var in self.vars.items():
+            progress.inc()
+            # Do not attempt to de-duplicate core assets, these should be ground truth sources
+            if var.var_type.is_asset:
+                continue
+            self_packages = var.used_packages.get("SELF")
+            if self_packages is None:
+                continue
+            for self_package in self_packages:
+                result = next((index for index in duplication_index if index[1].lower() == self_package), None)
+                if result is not None:
+                    var_list.add(var_id)
         return var_list
 
     def repair_metadata(self, var_ref: VarObject):
@@ -319,21 +305,20 @@ class VarDatabase(VarDatabaseImageDB):
         print(f"OPTIMIZING {var_obj.var_id}... {action}")
 
         temp_file = path.join(var_obj.directory, TEMP_VAR_NAME)
-        with zipfile.ZipFile(temp_file, "w", zipfile.ZIP_DEFLATED) as zf_dest:
-            with zipfile.ZipFile(var_obj.file_path, "r") as read_zf:
-                for item in read_zf.infolist():
-                    if item.filename == "meta.json":
-                        with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
-                            meta = json.loads(read_item.read())
-                            # Fix the contentList
-                            meta["contentList"] = [
-                                r for r in var_obj.namelist if r != "meta.json" and len(path.splitext(r)[1]) > 1
-                            ]
-                            meta["dependencies"] = self.get_dependencies_list_as_dict(var_obj.used_dependencies_sorted)
-                            meta_data = orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8")
-                            zf_dest.writestr(item.filename, meta_data, zipfile.ZIP_DEFLATED)
-                    else:
-                        zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+        with ZipReadInto(var_obj.file_path, temp_file) as (read_zf, zf_dest):
+            for item in read_zf.infolist():
+                if item.filename == "meta.json":
+                    with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
+                        meta = json.loads(read_item.read())
+                        # Fix the contentList
+                        meta["contentList"] = [
+                            r for r in var_obj.namelist if r != "meta.json" and len(path.splitext(r)[1]) > 1
+                        ]
+                        meta["dependencies"] = self.get_dependencies_list_as_dict(var_obj.used_dependencies_sorted)
+                        meta_data = orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8")
+                        zf_dest.writestr(item.filename, meta_data)
+                else:
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename))
 
         if failed:
             os.remove(temp_file)
@@ -395,7 +380,10 @@ class VarDatabase(VarDatabaseImageDB):
         if var_package is None:
             return False
 
-        if var_package.var_type.type == VarType.PLUGIN and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS:
+        if (
+            var_package.var_type.type == ContentType.PLUGIN
+            and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS
+        ):
             return True
 
         return False
@@ -412,7 +400,10 @@ class VarDatabase(VarDatabaseImageDB):
         if var_package is None:
             return False
 
-        if var_package.var_type.type == VarType.PLUGIN and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS:
+        if (
+            var_package.var_type.type == ContentType.PLUGIN
+            and var_package.author not in BACKWARDS_COMPAT_PLUGIN_AUTHORS
+        ):
             return False
 
         latest_version = max(self.vars_versions.get(var_package.duplicate_id))
@@ -584,26 +575,10 @@ class VarDatabase(VarDatabaseImageDB):
 
         return mappings
 
-    def repair_broken_var(self, var_ref: VarObject, remove_confirm=False, remove_skip=False) -> bool:
-        # var_ref is from the local_db typically and is a quick load
-        # This means it will not contain a detailed mapping of the var contents
-        # We want to create a new object to make sure repairs are accurate by rescanning the local
-        # object fully with the VarParser. This will make sure that the hidden _var_raw_data
-        # cache is fully populated.
-        print(f"CHECKING REPAIR {var_ref.var_id}...")
-        var_obj = VarObject(var_ref.root_path, var_ref.file_path)
-        replacement_mappings, replacement_used_packages = self.find_var_replacement_mappings(var_obj)
-
-        # If the local object doesn't have problems we don't need to reprocess it
-        if len(replacement_mappings) == 0:
-            return True
-
+    def check_broken_var_elements(self, var_id: str, replacement_mappings: dict) -> Tuple[Set[str], Set[str]]:
         # Repairs are needed, let's analyze how bad it is and get to work...
-        print(f"REPAIRING {var_ref.var_id}...")
-        repairable = True
-        removing_files = False
-        # Check if repairable (currently unsupported repairs)
         null_elems = set()
+        unrepairable_elems = set()
         for check_value, replace_value in replacement_mappings.items():
             check_ext = path.splitext(check_value)[1].lower()
             # If there is any replace_value, this error type can always be fixed
@@ -614,72 +589,89 @@ class VarDatabase(VarDatabaseImageDB):
                 # and broken nested asset references which can't be handled safely in the current
                 # methods. The atom removal logic will need to be expanded to support these types
                 # of edge cases.
-                if check_ext in Ext.TYPES_ELEM:
-                    null_elems.add(check_value)
-                elif check_ext not in Ext.TYPES_REPLACE:
-                    repairable = False
-                removing_files = True
-                print(f"{var_obj.var_id}: WILL REMOVE {check_value}")
+                if check_ext not in Ext.TYPES_REPLACE and check_ext not in Ext.TYPES_ELEM:
+                    print(f"{var_id}: CANNOT FIX {check_value}")
+                    unrepairable_elems.add(check_value)
+                else:
+                    print(f"{var_id}: FIX WILL REMOVE {check_value}")
+                    if check_ext in Ext.TYPES_ELEM:
+                        null_elems.add(check_value)
+        return null_elems, unrepairable_elems
 
-        if removing_files:
-            if remove_confirm:
-                confirm = input("Do you want to continue repairing this var? (y/n) ")
-                if confirm.lower() != "y":
-                    return False
-            if remove_skip:
-                print("Skipping file as removals required...")
-                return False
+    def repair_broken_var(self, var_ref: VarObject, remove_confirm=False, remove_skip=False) -> bool:
+        # var_ref is from the local_db typically and is a quick load
+        # This means it will not contain a detailed mapping of the var contents
+        # We want to create a new object to make sure repairs are accurate by rescanning the local
+        # object fully with the VarParser. This will make sure that the hidden _var_raw_data
+        # cache is fully populated.
+        print(f"CHECKING REPAIR {var_ref.var_id}...")
+        var_obj = VarObject(var_ref.root_path, var_ref.file_path)
 
-        if not repairable:
+        # Scan for repairs
+        replacement_mappings, replacement_used_packages = self.find_var_replacement_mappings(var_obj)
+        if len(replacement_mappings) == 0:
+            return True
+
+        null_elems, unrepairable_elems = self.check_broken_var_elements(var_obj.var_id, replacement_mappings)
+        if len(unrepairable_elems) > 0:
             print(f"{var_obj.var_id} >> Repairs not supported for issues in this var")
             return False
+        if len(null_elems) > 0 and remove_skip:
+            print("Skipping file as removals required...")
+            return False
+        if len(null_elems) > 0 and remove_confirm:
+            if input("Do you want to continue repairing this var? (y/n) ").lower() != "y":
+                return False
 
+        # Repair the var file
+        json_errors_during_repair = False
         temp_file = path.join(var_obj.directory, TEMP_VAR_NAME)
-        with zipfile.ZipFile(temp_file, "w", zipfile.ZIP_DEFLATED) as zf_dest:
-            with zipfile.ZipFile(var_obj.file_path, "r") as read_zf:
-                for item in read_zf.infolist():
-                    if item.filename == "meta.json":
-                        with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
-                            meta = json.loads(read_item.read())
-                            meta["contentList"] = [
-                                r for r in read_zf.namelist() if r != "meta.json" and len(path.splitext(r)[1]) > 1
-                            ]
-                            meta["dependencies"] = self.get_dependencies_list_as_dict(replacement_used_packages)
-                            zf_dest.writestr(
-                                "meta.json",
-                                orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8"),
-                                zipfile.ZIP_DEFLATED,
-                            )
-                            continue
-
-                    # Copy unfixable files directly
-                    if item.filename not in var_obj.json_like_files:
-                        zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+        with ZipReadInto(var_obj.file_path, temp_file) as (read_zf, zf_dest):
+            for item in read_zf.infolist():
+                if item.filename == "meta.json":
+                    with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
+                        meta = json.loads(read_item.read())
+                        meta["contentList"] = [
+                            r for r in read_zf.namelist() if r != "meta.json" and len(path.splitext(r)[1]) > 1
+                        ]
+                        meta["dependencies"] = self.get_dependencies_list_as_dict(replacement_used_packages)
+                        zf_dest.writestr(
+                            "meta.json",
+                            orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8"),
+                        )
                         continue
 
-                    # Read and attempt to repair any readable files
-                    try:
-                        with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
-                            contents = VarParser.replace(read_item.readlines(), replacement_mappings)
-                        json_data = json.loads("".join(contents))
+                # Copy unfixable files directly
+                if item.filename not in var_obj.json_like_files:
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename))
+                    continue
 
-                        if len(null_elems) > 0:
-                            if "storables" in json_data:
-                                json_data = VarParser.remove_from_atom(json_data, null_elems)
-                            elif "atoms" in json_data:
-                                person_atoms = [
-                                    i for i, item in enumerate(json_data["atoms"]) if item["type"] == "Person"
-                                ]
-                                for person_atom in person_atoms:
-                                    json_data["atoms"][person_atom] = VarParser.remove_from_atom(
-                                        json_data["atoms"][person_atom], null_elems
-                                    )
+                # Read and attempt to repair any readable files
+                try:
+                    with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
+                        contents = VarParser.replace(read_item.readlines(), replacement_mappings)
+                    json_data = json.loads("".join(contents))
 
-                        write_data = orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode("UTF-8")
-                        zf_dest.writestr(item.filename, write_data, zipfile.ZIP_DEFLATED)
-                    except JSONDecodeError as err:
-                        print(f"JSONDecodeError: {err}")
-                        zf_dest.writestr(item.filename, read_zf.read(item.filename), zipfile.ZIP_DEFLATED)
+                    if len(null_elems) > 0:
+                        if "storables" in json_data:
+                            json_data = VarParser.remove_from_atom(json_data, null_elems)
+                        elif "atoms" in json_data:
+                            person_atoms = [i for i, item in enumerate(json_data["atoms"]) if item["type"] == "Person"]
+                            for person_atom in person_atoms:
+                                json_data["atoms"][person_atom] = VarParser.remove_from_atom(
+                                    json_data["atoms"][person_atom], null_elems
+                                )
+
+                    write_data = orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode("UTF-8")
+                    zf_dest.writestr(item.filename, write_data)
+                except JSONDecodeError as err:
+                    print(f"JSONDecodeError: {item.filename} >> {err}")
+                    zf_dest.writestr(item.filename, read_zf.read(item.filename))
+                    json_errors_during_repair = True
+
+        if json_errors_during_repair:
+            os.remove(temp_file)
+            return False
 
         os.remove(var_obj.file_path)
         os.rename(temp_file, var_obj.file_path)

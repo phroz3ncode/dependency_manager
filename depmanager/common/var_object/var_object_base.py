@@ -2,8 +2,8 @@ import copy
 import os
 from os import path
 
+from depmanager.common.enums.ext import Ext
 from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.var_services.enums import Ext
 
 
 class VarObjectBase:
@@ -48,7 +48,7 @@ class VarObjectBase:
 
     @cached_property
     def root_directory(self) -> str:
-        return path.abspath(path.join(self.directory, "../.."))
+        return path.abspath(path.join(self.directory, ".."))
 
     @cached_property
     def sub_directory(self) -> str:
@@ -100,14 +100,6 @@ class VarObjectBase:
     @cached_property
     def is_versioned(self) -> bool:
         return "versioned" in self.directory
-
-    @cached_property
-    def is_required(self) -> bool:
-        return "required" in self.directory
-
-    @cached_property
-    def is_vamx(self) -> bool:
-        return str.lower(self.author) == "vamx"
 
     @cached_property
     def is_custom(self) -> bool:

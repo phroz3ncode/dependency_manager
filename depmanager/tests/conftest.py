@@ -5,8 +5,8 @@ from unittest.mock import PropertyMock
 
 import pytest
 
-from depmanager.common.var_services.databases.var_database import VarDatabase
-from depmanager.common.var_services.entities.var_object import VarObject
+from depmanager.common.var_database.var_database import VarDatabase
+from depmanager.common.var_object.var_object import VarObject
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +43,7 @@ def fixture_temporary_database(test_database_dir, test_data_temporary_dir):
     """Temporary VarDatabase for manipulating files"""
     shutil.rmtree(test_data_temporary_dir, ignore_errors=True)
     shutil.copytree(test_database_dir, test_data_temporary_dir)
-    yield VarDatabase(root=test_data_temporary_dir, disable_save=True)
+    yield VarDatabase(root=test_data_temporary_dir)
     shutil.rmtree(test_data_temporary_dir, ignore_errors=True)
 
 
@@ -55,7 +55,7 @@ def fixture_temporary_database(test_database_dir, test_data_temporary_dir):
 def fixture_mock_var_database(mock_copyfile, mock_symlink, mock_rename, test_database_dir):
     """Real VarDatabase with file manipulation disabled"""
     with mock.patch.object(VarDatabase, "manipulate_file"):
-        return VarDatabase(root=test_database_dir, disable_save=True)
+        return VarDatabase(root=test_database_dir)
 
 
 @pytest.fixture(name="mock_var_object_name")
@@ -88,5 +88,5 @@ def fixture_temporary_repair_database(test_database_dir, test_data_temporary_dir
     for var_name in removed_vars:
         os.remove(os.path.join(test_data_temporary_dir, f"{var_name}.var"))
 
-    yield VarDatabase(root=test_data_temporary_dir, disable_save=True)
+    yield VarDatabase(root=test_data_temporary_dir)
     shutil.rmtree(test_data_temporary_dir, ignore_errors=True)

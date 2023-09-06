@@ -104,10 +104,6 @@ def test_var_object_is_custom(test_var_object):
     assert test_var_object.is_custom
 
 
-def test_var_object_is_vamx(test_var_object):
-    assert not test_var_object.is_vamx
-
-
 def test_var_object_namelist(test_var_object):
     assert test_var_object.namelist == ["meta.json", "Saves/scene/test_scene.jpg", "Saves/scene/test_scene.json"]
 

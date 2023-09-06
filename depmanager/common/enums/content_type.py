@@ -1,11 +1,11 @@
 from os import path
 from typing import Optional
 
+from depmanager.common.enums.ext import Ext
 from depmanager.common.shared.tools import is_str_in_substrings
-from depmanager.common.var_services.enums import Ext
 
 
-class VarType:
+class ContentType:
     ASSET = "asset"
     APPEARANCE = "appearance"
     CLOTHING = "clothing"
@@ -133,6 +133,10 @@ class VarType:
         if check_type not in self.type_priority:
             raise ValueError("Unspecified type")
         return self.contains_ref.get(check_type, False)
+
+    @property
+    def is_asset(self):
+        return self.type in (self.types_asset + self.types_unity)
 
     @property
     def is_repairable(self):

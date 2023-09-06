@@ -7,13 +7,13 @@
 # from depmanager.common.var_services.databases.var_database import VarDatabase
 # from depmanager.common.var_services.enums import Ext
 # from depmanager.common.var_services.utils.var_parser import VarParser
-# from depmanager.common.var_services.var_config import VarConfig
+# from depmanager.common.var_services.var_config import Config
 #
 # used_packages = set()
-# remote_db = VarDatabase(VarConfig().remote_path)
-# local_path = path.join(VarConfig().local_path, "../common/var_services", "Custom", "Atom", "Person", "Appearance")
+# remote_db = VarDatabase(Config().remote_path)
+# local_path = path.join(Config().local_path, "../common/var_services", "Custom", "Atom", "Person", "Appearance")
 # local_path_rebuilds = path.join(
-#     VarConfig().local_path, "../common/var_services", "Custom", "Atom", "Person", "Appearance_Rebuilds"
+#     Config().local_path, "../common/var_services", "Custom", "Atom", "Person", "Appearance_Rebuilds"
 # )
 # for (root, _, files) in os.walk(local_path):
 #     for file in files:

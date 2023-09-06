@@ -4,22 +4,24 @@ from io import TextIOWrapper
 from json import JSONDecodeError
 from os import path
 from typing import Any
-from zipfile import ZipFile
+from typing import List
 
+from depmanager.common.enums.content_type import ContentType
+from depmanager.common.enums.ext import Ext
+from depmanager.common.enums.paths import FAVORITE
+from depmanager.common.enums.variables import MEGABYTE
 from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.shared.enums import MEGABYTE
+from depmanager.common.shared.json_parser import VarParser
 from depmanager.common.shared.tools import are_substrings_in_str
-from depmanager.common.var_services.entities.var_object_base import VarObjectBase
-from depmanager.common.var_services.entities.var_object_image_lib import VarObjectImageLib
-from depmanager.common.var_services.enums import Ext
-from depmanager.common.var_services.utils.var_parser import VarParser
-from depmanager.common.var_services.utils.var_type import VarType
+from depmanager.common.shared.ziptools import ZipRead
+from depmanager.common.var_object.var_object_base import VarObjectBase
+from depmanager.common.var_object.var_object_image_lib import VarObjectImageLib
 
 
 class VarObject(VarObjectBase, VarObjectImageLib):
     contains: dict[str, bool]
     dependencies: list[str]
-    var_type: VarType
+    var_type: ContentType
     infolist: list[tuple[str, int]]
 
     def __init__(
@@ -38,8 +40,9 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         self.infolist = infolist if infolist is not None else self._var_raw_data["infolist"]
         self.dependencies = dependencies if dependencies is not None else self._var_raw_data["dependencies"]
         self.used_packages = used_packages if used_packages is not None else self._var_raw_data["used_packages"]
-        self.contains = contains if contains is not None else VarType.ref_from_namelist(self.namelist)
-        self.var_type = VarType(self.contains)
+        self.contains = contains if contains is not None else ContentType.ref_from_namelist(self.namelist)
+        self.var_type = ContentType(self.contains)
+        self.is_favorite = False
 
     def to_dict(self):
         return {
@@ -69,7 +72,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
 
     @cached_property
     def _var_raw_data(self) -> dict[str, Any]:
-        with ZipFile(self.file_path, "r") as read_zf:
+        with ZipRead(self.file_path) as read_zf:
             # Load the infolist (file names and sizes)
             infolist = [(val.filename, val.file_size) for val in read_zf.infolist()]
 
@@ -104,16 +107,21 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         current_subdir = self.sub_directory
         if self.is_versioned:
             return current_subdir
-        if self.is_required:
-            return current_subdir
-        if self.is_vamx:
-            return self.var_type.DIR_VAMX
         if self.is_custom:
             return self.var_type.DIR_CUSTOM
         if self.var_type.type in self.var_type.types_with_json:
-            if are_substrings_in_str(current_subdir, [VarType.DIR_SCENE, VarType.DIR_LOOK]):
+            if are_substrings_in_str(current_subdir, [ContentType.DIR_SCENE, ContentType.DIR_LOOK]):
                 return current_subdir
-        return self.var_type.type_subdirectory
+        elif self.is_favorite and FAVORITE in current_subdir and self.var_type.type in current_subdir:
+            return current_subdir
+        elif not self.is_favorite and self.var_type.type in current_subdir:
+            return current_subdir
+
+        preferred_subdirectory = self.var_type.type_subdirectory
+        if self.is_favorite:
+            preferred_subdirectory = f"{preferred_subdirectory}_{FAVORITE}"
+
+        return preferred_subdirectory
 
     @cached_property
     def incorrect_subdirectory(self) -> bool:
@@ -164,7 +172,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         for file in self.namelist:
             file_parts = path.splitext(file)
             if file_parts[1].lower() in (Ext.JSON, Ext.VAP, Ext.VAJ):
-                if file == "meta.json":
+                if file == "meta.json" or "Custom/Scripts/" in file:
                     continue
                 files.append(file)
         return files
@@ -205,3 +213,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
                 required_dependencies.update(self._scan_keys_from_dict(value["dependencies"]))
             required_dependencies.add(key)
         return required_dependencies
+
+    def tag_as_favorite(self, favorites: List[str]):
+        if self.author in favorites:
+            self.is_favorite = True

@@ -2,9 +2,9 @@ from collections import defaultdict
 from os import path
 from typing import Optional
 
+from depmanager.common.enums.ext import Ext
 from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.shared.tools import substrings_in_str
-from depmanager.common.var_services.enums import Ext
 
 
 class VarParser:

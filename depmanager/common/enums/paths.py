@@ -1,0 +1,7 @@
+IMAGE_LIB_DIR = "_image_lib"
+REPAIR_LIB_DIR = "repair_lib"
+ADDON_PACKAGE_USER_PREFS_DIR = "AddonPackagesUserPrefs"
+TEMP_REPAIR_DIR = "repair"
+TEMP_OPTIMIZE_DIR = "repair"
+TEMP_SYNC_DIR = "sync"
+FAVORITE = "favorite"

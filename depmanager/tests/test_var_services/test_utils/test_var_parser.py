@@ -3,8 +3,8 @@ from os import path
 
 import pytest
 
-from depmanager.common.var_services.enums import Ext
-from depmanager.common.var_services.utils.var_parser import VarParser
+from depmanager.common.enums.ext import Ext
+from depmanager.common.shared.json_parser import VarParser
 
 
 def test_scan(test_data_fixture_dir):
