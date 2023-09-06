@@ -97,42 +97,55 @@ class VarDatabaseService:
             print("WARNING: Remote and local path are the same. Cannot update local missing.")
             return
 
-        # self.remote.db.refresh()
-        self.local.clear()
-        new_var_ids = self.local.db.keys - self.remote.db.keys
+        # Perform a circular scan to collect and repair anything movable
+        local_files_found = False
+        while True:
+            # Check for any unregistered local files each pass
+            self.local.clear()
+            new_var_ids = self.local.db.keys - self.remote.db.keys
 
-        if filters is not None:
-            filters = [f.strip() for f in filters]
-            new_var_ids = {v for v in new_var_ids if any(f for f in filters if f in self.local.db[v].sub_directory)}
+            # Apply directory filtering if specified
+            if filters is not None:
+                filters = [f.strip() for f in filters]
+                new_var_ids = {v for v in new_var_ids if any(f for f in filters if f in self.local.db[v].sub_directory)}
 
-        if len(new_var_ids) == 0:
-            print("No local vars missing from remote...")
-            return
+            # If there are no new vars, exit the loop
+            if len(new_var_ids) == 0:
+                break
 
-        local_var_ids = []
-        for var_id in sorted(new_var_ids):
-            print(f"PROCESSING {var_id}...")
-            var_ref = self.local.db[var_id]
-            if self.var_config.auto_repair:
-                remove_confirm = not self.var_config.auto_fix
-                remove_skip = self.var_config.auto_skip
-                repaired = self.remote.db.repair_broken_var(
-                    var_ref, remove_confirm=remove_confirm, remove_skip=remove_skip
-                )
-                # If the repair failed or was cancelled, don't attempt to import the var
-                if not repaired:
-                    continue
-                self.remote.db.repair_metadata(var_ref)
-            if self.var_config.auto_compress and var_ref.is_compressible:
-                var_ref.compress()
-            local_var_ids.append(var_id)
+            # Scan and try to repair vars
+            repaired_var_ids = self.execute_repair_pass(new_var_ids)
+            # If we repaired any vars, we should organize at the end
+            if len(repaired_var_ids) > 0:
+                local_files_found = True
+                # If we repaired everything we are done
+                if len(new_var_ids) == len(repaired_var_ids):
+                    break
+            # If we didn't repair anything...
+            else:
+                if len(new_var_ids) > 0:
+                    repair = (
+                        input("There are broken vars remaining. Attempt destructive repairs (y/n)? ").lower() == "y"
+                    )
+                    if repair:
+                        self.execute_repair_pass(new_var_ids, remove_confirm=True)
+                break
 
-        if len(local_var_ids) == 0:
-            print("No local vars to copy to remote...")
-            return
+        # Organize the remote database at the end
+        if local_files_found:
+            self.remote.auto_organize()
+        else:
+            print("No new vars to import")
 
-        progress = ProgressBar(len(local_var_ids), description="Copying local to remote")
-        for var_id in local_var_ids:
+    def execute_repair_pass(self, new_var_ids, remove_confirm=False):
+        repaired_var_ids = self.repair_var_ids(new_var_ids, remove_confirm)
+        if len(repaired_var_ids) == 0:
+            return repaired_var_ids
+
+        self.compress_var_ids(repaired_var_ids)
+
+        progress = ProgressBar(len(repaired_var_ids), description="Copying local to remote")
+        for var_id in repaired_var_ids:
             progress.inc()
             var = self.local.db[var_id]
             self.local.db.manipulate_file(
@@ -141,4 +154,31 @@ class VarDatabaseService:
                 move=False,
             )
             self.remote.db.add_file(os.path.join(self.remote.db.rootpath, var.sub_directory, var.filename))
-        self.remote.auto_organize()
+        self.remote.db.save()
+        return repaired_var_ids
+
+    def repair_var_ids(self, var_id_list, remove_confirm=False):
+        repaired_var_ids = []
+        for var_id in sorted(var_id_list):
+            var_ref = self.local.db[var_id]
+            if self.var_config.auto_repair:
+                repaired = self.remote.db.repair_broken_var(
+                    var_ref, remove_confirm=remove_confirm, remove_skip=not remove_confirm
+                )
+                # If the repair failed or was cancelled, don't attempt to import the var
+                if not repaired:
+                    continue
+                self.remote.db.repair_metadata(var_ref)
+            repaired_var_ids.append(var_id)
+        return repaired_var_ids
+
+    def compress_var_ids(self, var_id_list):
+        if not self.var_config.auto_compress:
+            compress = input("Compress vars (y/n)? ").lower() == "y"
+        else:
+            compress = True
+
+        if compress:
+            for var_id in sorted(var_id_list):
+                var_ref = self.local.db[var_id]
+                var_ref.compress()

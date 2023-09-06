@@ -1,5 +1,3 @@
-import os
-
 from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
 from depmanager.common.menu_service.menu_maintenance import MenuMaintenance
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
@@ -30,30 +28,4 @@ class MenuMain(BaseActionsMenu):
         self.cache.auto_organize_local_files_to_remote(filters=filters)
 
     def organize_with_image_lib(self):
-        self.cache.remote.db.refresh()
-        self.cache.remote.db.refresh_image_db()
-        input("Press ENTER when you are finished organizing the image_lib...")
-        image_lib_sub_directories = self.cache.remote.db.image_file_subdirs
-
-        # Move vars to new subdirectories
-        for var_id, var_item in self.cache.remote.db.vars.items():
-            new_subdir = image_lib_sub_directories.get(var_id)
-            if new_subdir is None:
-                print(f"Moving to removed {var_id}: {var_item.sub_directory} to removed")
-                self.cache.remote.db.manipulate_file(
-                    var_id,
-                    os.path.join(var_item.root_path, "removed"),
-                    move=True,
-                )
-            elif var_item.sub_directory != new_subdir:
-                print(f"Moving {var_id}: {var_item.sub_directory} to {new_subdir}")
-                self.cache.remote.db.image_changes()
-                self.cache.remote.db.manipulate_file(
-                    var_id,
-                    os.path.join(var_item.root_path, new_subdir),
-                    move=True,
-                )
-
-        self.cache.remote.db.save()
-        self.cache.remote.db.refresh_image_db()
-        self.cache.remote.db.save_image_db()
+        self.cache.remote.db.organize_with_image_db()

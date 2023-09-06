@@ -260,7 +260,9 @@ class VarObjectImageLib:
                 identities = files["appearance"] & files["images"]
 
         if identities is None:
-            if len(files["clothing"] & files["images"]) > 0:
+            if len([f for f in files["images"] if "Preset_" in f]) > 0:
+                identities = set(f for f in files["images"] if "Preset_" in f)
+            elif len(files["clothing"] & files["images"]) > 0:
                 identities = files["clothing"] & files["images"]
             elif len(files["clothing_vap"] & files["images"]) > 0:
                 identities = files["clothing_vap"] & files["images"]

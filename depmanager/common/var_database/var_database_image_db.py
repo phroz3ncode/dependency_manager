@@ -57,9 +57,6 @@ class VarDatabaseImageDB(VarDatabaseBase):
                 dep[file.replace(Ext.JPG, Ext.EMPTY)] = path.relpath(dir_path, self.image_db_local_path)
         return dep
 
-    def image_changes(self):
-        self._images_added_or_removed = True
-
     def save_image_db(self) -> None:
         if self._images_added_or_removed:
             print(f"Saving image database {self.image_db_path}")
@@ -128,3 +125,32 @@ class VarDatabaseImageDB(VarDatabaseBase):
         if len(removed_files) > 0 or len(added_files) > 0 or not os.path.exists(self.image_db_path):
             remove_empty_directories(self.image_db_local_path)
             self._images_added_or_removed = True
+
+    def organize_with_image_db(self) -> None:
+        self.refresh()
+        self.refresh_image_db()
+        input("Press ENTER when you are finished organizing the image_lib...")
+        image_lib_sub_directories = self.image_file_subdirs
+
+        # Move vars to new subdirectories
+        for var_id, var_item in self.vars.items():
+            new_subdir = image_lib_sub_directories.get(var_id)
+            if new_subdir is None:
+                print(f"Moving to removed {var_id}: {var_item.sub_directory} to removed")
+                self.manipulate_file(
+                    var_id,
+                    os.path.join(var_item.root_path, "removed"),
+                    move=True,
+                )
+            elif var_item.sub_directory != new_subdir:
+                print(f"Moving {var_id}: {var_item.sub_directory} to {new_subdir}")
+                self._images_added_or_removed = True
+                self.manipulate_file(
+                    var_id,
+                    os.path.join(var_item.root_path, new_subdir),
+                    move=True,
+                )
+
+        self.save()
+        self.refresh_image_db()  # Refresh checks if there are any removed files to be regenerated
+        self.save_image_db()

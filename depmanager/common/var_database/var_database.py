@@ -4,6 +4,8 @@ import os
 from collections import defaultdict
 from json import JSONDecodeError
 from os import path
+from typing import Set
+from typing import Tuple
 
 from orjson import orjson
 
@@ -573,27 +575,10 @@ class VarDatabase(VarDatabaseImageDB):
 
         return mappings
 
-    def repair_broken_var(self, var_ref: VarObject, remove_confirm=False, remove_skip=False) -> bool:
-        # var_ref is from the local_db typically and is a quick load
-        # This means it will not contain a detailed mapping of the var contents
-        # We want to create a new object to make sure repairs are accurate by rescanning the local
-        # object fully with the VarParser. This will make sure that the hidden _var_raw_data
-        # cache is fully populated.
-        print(f"CHECKING REPAIR {var_ref.var_id}...")
-        var_obj = VarObject(var_ref.root_path, var_ref.file_path)
-        replacement_mappings, replacement_used_packages = self.find_var_replacement_mappings(var_obj)
-        json_errors_during_repair = False
-
-        # If the local object doesn't have problems we don't need to reprocess it
-        if len(replacement_mappings) == 0:
-            return True
-
+    def check_broken_var_elements(self, var_id: str, replacement_mappings: dict) -> Tuple[Set[str], Set[str]]:
         # Repairs are needed, let's analyze how bad it is and get to work...
-        print(f"REPAIRING {var_ref.var_id}...")
-        repairable = True
-        removing_files = False
-        # Check if repairable (currently unsupported repairs)
         null_elems = set()
+        unrepairable_elems = set()
         for check_value, replace_value in replacement_mappings.items():
             check_ext = path.splitext(check_value)[1].lower()
             # If there is any replace_value, this error type can always be fixed
@@ -604,26 +589,42 @@ class VarDatabase(VarDatabaseImageDB):
                 # and broken nested asset references which can't be handled safely in the current
                 # methods. The atom removal logic will need to be expanded to support these types
                 # of edge cases.
-                if check_ext in Ext.TYPES_ELEM:
-                    null_elems.add(check_value)
-                elif check_ext not in Ext.TYPES_REPLACE:
-                    repairable = False
-                removing_files = True
-                print(f"{var_obj.var_id}: WILL REMOVE {check_value}")
+                if check_ext not in Ext.TYPES_REPLACE and check_ext not in Ext.TYPES_ELEM:
+                    print(f"{var_id}: CANNOT FIX {check_value}")
+                    unrepairable_elems.add(check_value)
+                else:
+                    print(f"{var_id}: FIX WILL REMOVE {check_value}")
+                    if check_ext in Ext.TYPES_ELEM:
+                        null_elems.add(check_value)
+        return null_elems, unrepairable_elems
 
-        if removing_files:
-            if remove_skip:
-                print("Skipping file as removals required...")
-                return False
-            if remove_confirm:
-                confirm = input("Do you want to continue repairing this var? (y/n) ")
-                if confirm.lower() != "y":
-                    return False
+    def repair_broken_var(self, var_ref: VarObject, remove_confirm=False, remove_skip=False) -> bool:
+        # var_ref is from the local_db typically and is a quick load
+        # This means it will not contain a detailed mapping of the var contents
+        # We want to create a new object to make sure repairs are accurate by rescanning the local
+        # object fully with the VarParser. This will make sure that the hidden _var_raw_data
+        # cache is fully populated.
+        print(f"CHECKING REPAIR {var_ref.var_id}...")
+        var_obj = VarObject(var_ref.root_path, var_ref.file_path)
 
-        if not repairable:
+        # Scan for repairs
+        replacement_mappings, replacement_used_packages = self.find_var_replacement_mappings(var_obj)
+        if len(replacement_mappings) == 0:
+            return True
+
+        null_elems, unrepairable_elems = self.check_broken_var_elements(var_obj.var_id, replacement_mappings)
+        if len(unrepairable_elems) > 0:
             print(f"{var_obj.var_id} >> Repairs not supported for issues in this var")
             return False
+        if len(null_elems) > 0 and remove_skip:
+            print("Skipping file as removals required...")
+            return False
+        if len(null_elems) > 0 and remove_confirm:
+            if input("Do you want to continue repairing this var? (y/n) ").lower() != "y":
+                return False
 
+        # Repair the var file
+        json_errors_during_repair = False
         temp_file = path.join(var_obj.directory, TEMP_VAR_NAME)
         with ZipReadInto(var_obj.file_path, temp_file) as (read_zf, zf_dest):
             for item in read_zf.infolist():

@@ -2,7 +2,7 @@ import ctypes
 import json
 import os
 import sys
-from typing import List
+from typing import List, Set
 
 # pylint: disable=protected-access
 IMAGE_RESOURCE_DIR = sys._MEIPASS if hasattr(sys, "_MEIPASS") else "resources"
@@ -89,5 +89,5 @@ class Config:
         return self.config.get("repair_auto_fix_on_missing", False)
 
     @property
-    def favorites(self) -> List[str]:
-        return self.config["favorites"]
+    def favorites(self) -> Set[str]:
+        return set(self.config["favorites"])
