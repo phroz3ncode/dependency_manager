@@ -1,7 +1,8 @@
 import os
 from datetime import datetime
 from os import path
-from typing import List
+from typing import Dict
+from typing import Optional
 
 import filedate
 
@@ -14,7 +15,13 @@ from depmanager.common.var_database.var_database_base import VarDatabaseBase
 
 
 class VarDatabaseImageDB(VarDatabaseBase):
-    def __init__(self, root: str = None, image_root: str = None, quick_scan: bool = False, favorites: List[str] = None):
+    def __init__(
+        self,
+        root: str = None,
+        image_root: str = None,
+        quick_scan: bool = False,
+        favorites: Dict[str, Optional[str]] = None,
+    ):
         super().__init__(root=root, quick_scan=quick_scan, favorites=favorites)
         self._images_added_or_removed = False
 

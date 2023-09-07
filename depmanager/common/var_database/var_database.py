@@ -245,7 +245,7 @@ class VarDatabase(VarDatabaseImageDB):
 
     def find_unused_vars(self, filters=None, invert=False) -> set[str]:
         # Get the unused vars
-        favorites = set(key for key, var in self.vars.items() if var.is_favorite)
+        favorites = set(key for key, var in self.vars.items() if var.favorite)
         var_list = self.keys - set(self.unique_referenced_dependencies)
         var_list = var_list - favorites
         if invert:

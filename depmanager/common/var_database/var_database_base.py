@@ -10,7 +10,6 @@ from collections import defaultdict
 from json import JSONDecodeError
 from os import path
 from typing import Dict
-from typing import List
 from typing import Optional
 
 from orjson import orjson
@@ -37,14 +36,14 @@ class VarDatabaseBase(CachedObject):
     quick_scan: bool
     scanned: bool
 
-    def __init__(self, root: str = None, quick_scan: bool = False, favorites: List[str] = None):
+    def __init__(self, root: str = None, quick_scan: bool = False, favorites: Dict[str, Optional[str]] = None):
         self._files_added_or_removed = False
 
         self.rootpath = root
         self.root_db = "remote_db.json"
         self.vars = {}
         self.quick_scan = quick_scan
-        self.favorites = favorites if favorites else []
+        self.favorites = favorites if favorites else {}
 
         self.load()
 
@@ -112,7 +111,7 @@ class VarDatabaseBase(CachedObject):
                 if sys.gettrace():
                     time.sleep(2)
                 files_with_stats = list(m_pool.map(get_file_stat, files))
-        except BufferError:
+        except (BrokenPipeError, BufferError):
             print("Failed to secure buffer...")
             files_with_stats = list(get_file_stat(file) for file in files)
         return files_with_stats

@@ -4,7 +4,8 @@ from io import TextIOWrapper
 from json import JSONDecodeError
 from os import path
 from typing import Any
-from typing import List
+from typing import Dict
+from typing import Optional
 
 from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
@@ -42,7 +43,8 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         self.used_packages = used_packages if used_packages is not None else self._var_raw_data["used_packages"]
         self.contains = contains if contains is not None else ContentType.ref_from_namelist(self.namelist)
         self.var_type = ContentType(self.contains)
-        self.is_favorite = False
+        self.favorite = False
+        self.favorite_subdirectory = None
 
     def to_dict(self):
         return {
@@ -102,26 +104,49 @@ class VarObject(VarObjectBase, VarObjectImageLib):
     def namelist(self) -> list[str]:
         return [val for val, _ in self.infolist]
 
+    @property
+    def is_scene_type(self):
+        return self.var_type.type in self.var_type.types_with_json
+
+    @property
+    def is_look_type(self):
+        return self.is_scene_type and ContentType.DIR_LOOK in self.sub_directory
+
+    @property
+    def favorite_correct_in_subdir(self):
+        if self.favorite:
+            if self.is_scene_type and self.favorite_subdirectory is not None:
+                if self.favorite_subdirectory not in self.sub_directory:
+                    return False
+            if not self.is_scene_type and FAVORITE not in self.sub_directory:
+                return False
+        return True
+
     @cached_property
     def preferred_subdirectory(self) -> str:
-        current_subdir = self.sub_directory
-        if self.is_versioned:
-            return current_subdir
         if self.is_custom:
             return self.var_type.DIR_CUSTOM
-        if self.var_type.type in self.var_type.types_with_json:
-            if are_substrings_in_str(current_subdir, [ContentType.DIR_SCENE, ContentType.DIR_LOOK]):
-                return current_subdir
-        elif self.is_favorite and FAVORITE in current_subdir and self.var_type.type in current_subdir:
-            return current_subdir
-        elif not self.is_favorite and self.var_type.type in current_subdir:
-            return current_subdir
 
-        preferred_subdirectory = self.var_type.type_subdirectory
-        if self.is_favorite:
-            preferred_subdirectory = f"{preferred_subdirectory}_{FAVORITE}"
+        contains_scene_in_subdir = are_substrings_in_str(
+            self.sub_directory, [ContentType.DIR_SCENE, ContentType.DIR_LOOK]
+        )
+        contains_vartype_in_subdir = self.var_type.type in self.sub_directory
+        if (
+            self.is_versioned
+            or (self.is_scene_type and contains_scene_in_subdir and self.favorite_correct_in_subdir)
+            or (not self.is_scene_type and contains_vartype_in_subdir and self.favorite_correct_in_subdir)
+        ):
+            return self.sub_directory
 
-        return preferred_subdirectory
+        if self.is_scene_type and not self.favorite_correct_in_subdir:
+            if ContentType.DIR_LOOK in self.sub_directory:
+                return path.join(ContentType.DIR_LOOK, self.favorite_subdirectory)
+            return path.join(ContentType.DIR_SCENE, self.favorite_subdirectory)
+        else:
+            preferred_subdirectory = self.var_type.type_subdirectory
+            if self.favorite:
+                preferred_subdirectory = f"{preferred_subdirectory}_{FAVORITE}"
+            return preferred_subdirectory
 
     @cached_property
     def incorrect_subdirectory(self) -> bool:
@@ -214,6 +239,9 @@ class VarObject(VarObjectBase, VarObjectImageLib):
             required_dependencies.add(key)
         return required_dependencies
 
-    def tag_as_favorite(self, favorites: List[str]):
+    def tag_as_favorite(self, favorites: Dict[str, Optional[str]]):
         if self.author in favorites:
-            self.is_favorite = True
+            self.favorite = True
+            self.favorite_subdirectory = favorites[self.author]
+            if self.favorite_subdirectory is not None:
+                assert True

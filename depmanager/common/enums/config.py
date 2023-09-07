@@ -2,7 +2,10 @@ import ctypes
 import json
 import os
 import sys
-from typing import List, Set
+from typing import Dict
+from typing import Optional
+
+from depmanager.common.shared.cached_property import cached_property
 
 # pylint: disable=protected-access
 IMAGE_RESOURCE_DIR = sys._MEIPASS if hasattr(sys, "_MEIPASS") else "resources"
@@ -16,7 +19,7 @@ class Config:
         "repair_on_import": True,
         "repair_auto_skip_on_missing": False,
         "repair_auto_fix_on_missing": False,
-        "favorites": [],
+        "favorites": ["author_name_example", ("author_name_example_with_subdir", "subdir")],
     }
 
     def __init__(self):
@@ -45,7 +48,7 @@ class Config:
                 "Please edit the dependency_manager.cfg file created during the first run and restart this program."
             )
 
-    @property
+    @cached_property
     def is_admin(self) -> bool:
         try:
             is_admin = os.getuid() == 0
@@ -53,7 +56,7 @@ class Config:
             is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
         return is_admin
 
-    @property
+    @cached_property
     def local_path(self) -> str:
         file_path = os.getenv("LOCAL_PATH")
         if file_path is None:
@@ -64,7 +67,7 @@ class Config:
                 file_path = os.path.dirname(os.path.realpath(__file__))
         return str(file_path)
 
-    @property
+    @cached_property
     def remote_path(self) -> str:
         return self.config["remote_path"]
 
@@ -88,6 +91,12 @@ class Config:
     def auto_fix(self) -> bool:
         return self.config.get("repair_auto_fix_on_missing", False)
 
-    @property
-    def favorites(self) -> Set[str]:
-        return set(self.config["favorites"])
+    @cached_property
+    def favorites(self) -> Dict[str, Optional[str]]:
+        favorites = {}
+        for f in self.config["favorites"]:
+            if isinstance(f, list):
+                favorites[f[0]] = f[1]
+            else:
+                favorites[f] = None
+        return favorites
