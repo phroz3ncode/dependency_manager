@@ -1,7 +1,6 @@
 import json
 import os
-from typing import Dict
-from typing import Optional
+from typing import List
 
 from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
@@ -19,9 +18,7 @@ from depmanager.common.var_database_service.database_service_tools import Databa
 
 
 class DatabaseService(CachedObject, DatabaseServiceTools):
-    def __init__(
-        self, root: str, image_root: str = None, quick_scan: bool = False, favorites: Dict[str, Optional[str]] = None
-    ):
+    def __init__(self, root: str, image_root: str = None, quick_scan: bool = False, favorites: List[str] = None):
         self.root = root
         self.image_root = image_root
         self.quick_scan = quick_scan

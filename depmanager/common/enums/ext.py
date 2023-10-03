@@ -16,6 +16,7 @@ class Ext:
     CS = ".cs"
     CSLIST = ".cslist"
     DLL = ".dll"
+    ASSETBUNDLE = ".assetbundle"
 
     TYPES_ELEM = [VMI, VAM]
     TYPES_JSON = [VAP, JSON]

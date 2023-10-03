@@ -1,13 +1,13 @@
 import os
 from datetime import datetime
 from os import path
-from typing import Dict
-from typing import Optional
+from typing import List
 
 import filedate
 
 from depmanager.common.enums.ext import Ext
 from depmanager.common.enums.paths import IMAGE_LIB_DIR
+from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import remove_empty_directories
 from depmanager.common.shared.ziptools import ZipRead
 from depmanager.common.shared.ziptools import ZipWrite
@@ -20,7 +20,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
         root: str = None,
         image_root: str = None,
         quick_scan: bool = False,
-        favorites: Dict[str, Optional[str]] = None,
+        favorites: List[str] = None,
     ):
         super().__init__(root=root, quick_scan=quick_scan, favorites=favorites)
         self._images_added_or_removed = False
@@ -116,7 +116,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
                 )
 
     def refresh_image_db(self) -> None:
-        print("Updating image lib... [Progress bar TBD]")
+        print("Updating image lib...")
         self.load_image_db()
         required_image_files = set(path.join(v.sub_directory, f"{v.clean_name}{Ext.JPG}") for _, v in self.vars.items())
         current_image_files = set(os.path.relpath(f, self.image_db_local_path) for f in self.image_files)
@@ -126,8 +126,11 @@ class VarDatabaseImageDB(VarDatabaseBase):
         for image_path in sorted(removed_files):
             os.remove(os.path.join(self.image_db_local_path, image_path))
 
-        for image_path in sorted(added_files):
-            self.update_var_image(image_path)
+        if len(added_files) > 0:
+            progress = ProgressBar(len(added_files), "Scanning new var images")
+            for image_path in sorted(added_files):
+                progress.inc()
+                self.update_var_image(image_path)
 
         if len(removed_files) > 0 or len(added_files) > 0 or not os.path.exists(self.image_db_path):
             remove_empty_directories(self.image_db_local_path)

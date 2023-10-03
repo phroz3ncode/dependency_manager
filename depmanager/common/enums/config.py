@@ -2,8 +2,7 @@ import ctypes
 import json
 import os
 import sys
-from typing import Dict
-from typing import Optional
+from typing import List
 
 from depmanager.common.shared.cached_property import cached_property
 
@@ -19,7 +18,7 @@ class Config:
         "repair_on_import": True,
         "repair_auto_skip_on_missing": False,
         "repair_auto_fix_on_missing": False,
-        "favorites": ["author_name_example", ("author_name_example_with_subdir", "subdir")],
+        "favorites": ["author_name_example"],
     }
 
     def __init__(self):
@@ -92,11 +91,5 @@ class Config:
         return self.config.get("repair_auto_fix_on_missing", False)
 
     @cached_property
-    def favorites(self) -> Dict[str, Optional[str]]:
-        favorites = {}
-        for f in self.config["favorites"]:
-            if isinstance(f, list):
-                favorites[f[0]] = f[1]
-            else:
-                favorites[f] = None
-        return favorites
+    def favorites(self) -> List[str]:
+        return list(self.config.get("favorites", []))

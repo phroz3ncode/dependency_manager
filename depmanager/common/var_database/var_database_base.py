@@ -10,6 +10,7 @@ from collections import defaultdict
 from json import JSONDecodeError
 from os import path
 from typing import Dict
+from typing import List
 from typing import Optional
 
 from orjson import orjson
@@ -36,14 +37,14 @@ class VarDatabaseBase(CachedObject):
     quick_scan: bool
     scanned: bool
 
-    def __init__(self, root: str = None, quick_scan: bool = False, favorites: Dict[str, Optional[str]] = None):
+    def __init__(self, root: str = None, quick_scan: bool = False, favorites: List[str] = None):
         self._files_added_or_removed = False
 
         self.rootpath = root
         self.root_db = "remote_db.json"
         self.vars = {}
         self.quick_scan = quick_scan
-        self.favorites = favorites if favorites else {}
+        self.favorites = favorites if favorites else []
 
         self.load()
 
@@ -314,9 +315,18 @@ class VarDatabaseBase(CachedObject):
 
     def dedupe_dependency_list(self, dependencies: set[str]) -> set[str]:
         # If an exact version is needed, we only need the exact reference, it will double as latest
-        duplicates = set()
+        removals = set()
+        additions = set()
         for dependency in dependencies:
-            if ".latest" not in dependency:
-                if self.get_var_name_as_latest(dependency) in dependencies:
-                    duplicates.add(self.get_var_name_as_latest(dependency))
-        return dependencies - duplicates
+            # If the current dependency is hardcoded but there is also a "latest" version in dependencies
+            if ".latest" not in dependency and self.get_var_name_as_latest(dependency) in dependencies:
+                removals.add(self.get_var_name_as_latest(dependency))
+
+                # We need to check if the latest version is actually the newest, and if so add the newest
+                latest_var_id = self.get_var_name(self.get_var_name_as_latest(dependency))
+                if dependency not in self.vars or self.vars[dependency].version < self.vars[latest_var_id].version:
+                    additions.add(latest_var_id)
+
+        dependencies = dependencies - removals
+        dependencies = dependencies.union(additions)
+        return dependencies

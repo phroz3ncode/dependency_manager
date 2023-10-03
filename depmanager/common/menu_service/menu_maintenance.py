@@ -148,11 +148,11 @@ class MenuMaintenance(BaseActionsMenu):
         files_used_by = defaultdict(list)
         for var_id, var in self.cache.remote.db.vars.items():
             for item, size in var.infolist:
-                if Ext.JPG in item or Ext.PNG in item or Ext.TIF in item:
+                if Ext.JPG in item or Ext.PNG in item or Ext.TIF in item or Ext.ASSETBUNDLE in item:
                     files[item].append(size)
                     files_used_by[item].append(var_id)
 
-        duplicates = [(sum(f_uses) / MEGABYTE, len(f_uses), f) for f, f_uses in files.items() if len(f_uses) > 1]
+        duplicates = [(sum(f_uses[1:]) / MEGABYTE, len(f_uses), f) for f, f_uses in files.items() if len(f_uses) > 1]
         duplicates = sorted(duplicates, reverse=True)
         total_duplication = sum(d[0] for d in duplicates)
         print(f"Total duplication: {total_duplication} MB")

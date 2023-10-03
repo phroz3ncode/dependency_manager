@@ -41,7 +41,7 @@ class VarDatabaseService:
 
         missing = set()
         for var in all_required:
-            if self.local.db.get_var_name(var) is None:
+            if var is not None and self.local.db.get_var_name(var) is None:
                 missing.add(var)
         return missing
 

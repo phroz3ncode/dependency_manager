@@ -247,7 +247,6 @@ class VarDatabase(VarDatabaseImageDB):
         # Get the unused vars
         favorites = set(key for key, var in self.vars.items() if var.favorite)
         var_list = self.keys - set(self.unique_referenced_dependencies)
-        var_list = var_list - favorites
         if invert:
             var_list = self.keys - var_list
         if filters is not None:
@@ -255,6 +254,7 @@ class VarDatabase(VarDatabaseImageDB):
                 raise ValueError("Filter must be a list")
             filters = [f.strip() for f in filters]
             var_list = {v for v in var_list if any(f for f in filters if f in self[v].sub_directory)}
+        var_list = var_list - favorites
         return set(var_list)
 
     def find_unoptimized_vars(self):
