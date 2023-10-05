@@ -16,7 +16,7 @@ from depmanager.common.enums.variables import BACKWARDS_COMPAT_PLUGIN_AUTHORS
 from depmanager.common.enums.variables import MEGABYTE
 from depmanager.common.enums.variables import TEMP_VAR_NAME
 from depmanager.common.shared.cached_property import cached_property
-from depmanager.common.shared.json_parser import VarParser
+from depmanager.common.parser.parser import VarParser
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import find_fuzzy_file_match
 from depmanager.common.shared.tools import select_fuzzy_match

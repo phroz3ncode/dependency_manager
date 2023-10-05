@@ -6,6 +6,7 @@ from depmanager.common.enums.methods import OrganizeMethods
 from depmanager.common.enums.paths import TEMP_REPAIR_DIR
 from depmanager.common.enums.variables import MEGABYTE
 from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
+from depmanager.common.parser.appearance_parser import AppearanceParser
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
 from depmanager.common.shared.ziptools import ZipWrite
 
@@ -24,8 +25,7 @@ class MenuMaintenance(BaseActionsMenu):
                 ConsoleMenuItem("CREATE *.dep from local image_lib", self.build_dep_from_image_lib),
                 ConsoleMenuItem("FIND what uses var", self.search_that_use),
                 ConsoleMenuItem("FIND low value vars", self.search_low_value),
-                ConsoleMenuItem("FIND texture duplication", self.search_texture),
-                ConsoleMenuItem("Repair duplication", self.repair_duplication),
+                ConsoleMenuItem("EXTRACT appearances", self.extract_appearance_presets),
             ],
         )
 
@@ -161,3 +161,15 @@ class MenuMaintenance(BaseActionsMenu):
                 print(val)
             else:
                 break
+
+
+    def extract_appearance_presets(self):
+        self.cache.local.refresh()
+
+        appearances = {}
+        for var_id, var_ref in self.cache.local.db.vars.items():
+            parser = AppearanceParser(var_ref)
+            found = parser.extract()
+            if found is not None:
+                appearances[var_id] = found
+        assert True

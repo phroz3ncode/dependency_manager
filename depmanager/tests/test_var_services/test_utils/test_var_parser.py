@@ -4,7 +4,7 @@ from os import path
 import pytest
 
 from depmanager.common.enums.ext import Ext
-from depmanager.common.shared.json_parser import VarParser
+from depmanager.common.parser.parser import VarParser
 
 
 def test_scan(test_data_fixture_dir):

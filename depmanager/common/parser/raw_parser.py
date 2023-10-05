@@ -7,7 +7,7 @@ from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.shared.tools import substrings_in_str
 
 
-class VarParser:
+class RawParser:
     @staticmethod
     def scan(contents: list[str]) -> set[str]:
         """Scan the contents of a readable file for references"""
@@ -50,6 +50,15 @@ class VarParser:
                 packages["SELF_UNREF"].add(package_path)
         return packages
 
+    @classmethod
+    def replace(cls, contents: list[str], replacement_mappings: dict[str, Optional[str]]) -> list[str]:
+        rebuilt_contents = []
+        for line in contents:
+            if are_substrings_in_str(line, [":/", "Custom/", "Saves/"]):
+                line = cls.replace_line(line, replacement_mappings)
+            rebuilt_contents.append(line)
+        return rebuilt_contents
+
     @staticmethod
     def replace_line(line: str, replacement_mappings: dict[str, Optional[str]]) -> str:
         replacement_matches = substrings_in_str(line, list(replacement_mappings.keys()))
@@ -84,56 +93,4 @@ class VarParser:
         # Replace the bad reference with the good reference
         return line.replace(original_value, replaced_value)
 
-    @classmethod
-    def replace(cls, contents: list[str], replacement_mappings: dict[str, Optional[str]]) -> list[str]:
-        rebuilt_contents = []
-        for line in contents:
-            if are_substrings_in_str(line, [":/", "Custom/", "Saves/"]):
-                line = cls.replace_line(line, replacement_mappings)
-            rebuilt_contents.append(line)
-        return rebuilt_contents
 
-    @staticmethod
-    def remove_from_elems(
-        vmi_elems: list[dict], elems_to_remove: set[str], id_field: str, track_internal_ids: bool = False
-    ) -> tuple[list[dict], set[str]]:
-        repaired_elems = []
-        internal_ids = set()
-        for vmi_elem in vmi_elems:
-            if vmi_elem[id_field] not in elems_to_remove:
-                repaired_elems.append(vmi_elem)
-            elif track_internal_ids:
-                internal_ids.add(vmi_elem["internalId"])
-        return repaired_elems, internal_ids
-
-    @classmethod
-    def remove_from_atom(cls, atom: dict[str, list[dict]], elems_to_remove: set[str]) -> dict[str, list[dict]]:
-        geometry_index = next((i for i, item in enumerate(atom["storables"]) if item["id"] == "geometry"), None)
-        if geometry_index is None:
-            return atom
-
-        supported_geometry = [("morphs", "uid", False), ("clothing", "id", True), ("hair", "id", True)]
-
-        internal_ids = set()
-        for geometry in supported_geometry:
-            if geometry[0] not in atom["storables"][geometry_index]:
-                continue
-            atom["storables"][geometry_index][geometry[0]], geometry_internal_ids = cls.remove_from_elems(
-                atom["storables"][geometry_index][geometry[0]],
-                elems_to_remove,
-                geometry[1],
-                track_internal_ids=geometry[2],
-            )
-            internal_ids.update(geometry_internal_ids)
-
-        # Check if internalIds need to be removed
-        internal_ids = list(internal_ids)
-        if len(internal_ids) > 0:
-            remove_id_indexes = sorted(
-                [i for i, item in enumerate(atom["storables"]) if are_substrings_in_str(item["id"], internal_ids)],
-                reverse=True,
-            )
-            for remove_id_idx in remove_id_indexes:
-                atom["storables"].pop(remove_id_idx)
-
-        return atom
