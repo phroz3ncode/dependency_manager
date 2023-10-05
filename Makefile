@@ -34,3 +34,6 @@ clean:
 	find . -name "*.spec" -exec rm {} \;
 	rm -rf build
 	rm -rf dist
+
+authorize:
+	ssh-add ~/.ssh/id_ed25519_phroz3ncode
