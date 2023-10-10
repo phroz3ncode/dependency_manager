@@ -13,10 +13,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Checkout repo
-      with:
-        repository: phroz3ncode/dependency_manager@main
-        path: src
 
     - name: PyInstaller Windows
       uses: ./.github/actions/pyinstaller
