@@ -27,7 +27,6 @@ class AppearanceParser(JsonParser):
         with ZipRead(self.var.file_path) as read_zf:
             for item in self.var.json_like_files:
                 atoms, linked_atoms = [], []
-                item_name = path.split(item)[-1]
                 with TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
                     json_data = json.loads(read_item.read())
 
@@ -41,9 +40,9 @@ class AppearanceParser(JsonParser):
 
                     if len(atoms) > 0:
                         for atom_id, atom_contents in atoms:
-                            person_atoms.append((item_name, atom_id, atom_contents))
+                            person_atoms.append((item, atom_id, atom_contents))
                         if len(linked_atoms) > 0:
-                            linked_cua_atoms.append((item_name, linked_atoms))
+                            linked_cua_atoms.append((item, linked_atoms))
 
         if len(person_atoms) == 0:
             return None

@@ -1,0 +1,13 @@
+# action.yml
+name: 'PyInstaller Windows'
+description: 'Customisable GitHub Action to package your python code with PyInstaller for Windows'
+branding:
+  icon: 'box'
+  color: 'blue'
+outputs:
+  output:
+    description: 'The output of PyInstaller'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
