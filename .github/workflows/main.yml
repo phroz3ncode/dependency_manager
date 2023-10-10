@@ -12,18 +12,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Checkout
+    - uses: actions/checkout@v4
+    - name: Checkout repo
       uses: phroz3ncode/dependency_manager@main
       with:
-        path: .
+        repository: phroz3ncode/dependency_manager@main
+        path: src
 
     - name: PyInstaller Windows
       uses: ./.github/actions/pyinstaller
       with:
-        path: .
+        path: src
 
     - uses: actions/upload-artifact@v2
       with:
         name: my-exe
-        path: ./dist/windows # or path/to/artifact
+        path: src/dist/windows # or path/to/artifact
