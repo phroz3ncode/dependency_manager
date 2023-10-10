@@ -1,8 +1,11 @@
 reqs:
-	pip3 install pyinstaller
+	python -m pip install --upgrade pip
 	pip3 install -r requirements.txt
 
 activate:
+	source ../virtualenvs/dependency_manager_311/Scripts/activate
+
+activate_310:
 	source ../virtualenvs/dependency_manager_310/Scripts/activate
 
 black:
@@ -19,7 +22,7 @@ build-full:
 	rm -rf build
 	rm -rf dist
 	pyinstaller \
-	    --clean -y --dist ./dist/windows \
+	    --dist ./dist/windows \
 		--onefile \
 		--name dependency_manager \
 		--add-data "depmanager/resources/morph.jpg;." \
@@ -29,7 +32,7 @@ build-full:
 		depmanager/run_var.py
 
 build-quick:
-	pyinstaller --clean -y --dist ./dist/windows ./dependency_manager.spec
+	pyinstaller --dist ./dist/windows ./dependency_manager.spec
 
 authorize:
 	ssh-add ~/.ssh/id_ed25519_phroz3ncode
