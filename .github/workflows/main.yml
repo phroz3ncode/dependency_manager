@@ -1,0 +1,29 @@
+name: Package exe with PyInstaller - Windows
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Checkout
+      uses: phroz3ncode/dependency_manager@main
+      with:
+        path: .
+
+    - name: PyInstaller Windows
+      uses: ./.github/actions/pyinstaller
+      with:
+        path: .
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: my-exe
+        path: ./dist/windows # or path/to/artifact
