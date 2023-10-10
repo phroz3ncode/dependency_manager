@@ -48,3 +48,17 @@ Setup a debug environment with the following:
 
 ### Using Dependency Manager
 Dependency manager features a LOT of functionality. I will expand on this section in the future.
+
+Basic functionality:
+- Create an index of all of your var files in a remote location.
+- Automatically categorize vars by type and into folders.
+- Synchronize any missing files to your local AddonPackages folder.
+- Provide an image based organization system for organizing files to folders.
+- Provide a way to quickly organize used and unused vars into separate directories.
+- Track and filter required versions. If you don't need a version then it will help you remove it.
+- Automatically import vars from your local AddonPackages into a remote location.
+- Repair and Compress var files on import.
+- Repair broken vars or broken and unoptimized metadata files.
+- Provide multiple ways of synchronizing just the files you want to the local AddonPackages.
+
+I recommend creating a small collection and playing around with the functionality until I have more time to update a wiki or howto.
