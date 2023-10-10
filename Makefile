@@ -3,7 +3,7 @@ reqs:
 	pip3 install -r requirements.txt
 
 activate:
-	source ./venv/Scripts/activate
+	source ../virtualenvs/dependency_manager_310/Scripts/activate
 
 black:
 	python -m isort --sl --line-length 120 depmanager

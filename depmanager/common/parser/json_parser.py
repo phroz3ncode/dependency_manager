@@ -20,7 +20,12 @@ class JsonParser:
 
     @classmethod
     def get_linked_cua_atoms(cls, atom_elems):
-        return list(filter(lambda v: v['type'] == 'CustomUnityAsset' and cls.contains_cua_linkto_storable(v["storables"]), atom_elems))
+        return list(
+            filter(
+                lambda v: v["type"] == "CustomUnityAsset" and cls.contains_cua_linkto_storable(v["storables"]),
+                atom_elems,
+            )
+        )
 
     # @classmethod
     # def get_linked_cua_atoms(cls, atom_elems):

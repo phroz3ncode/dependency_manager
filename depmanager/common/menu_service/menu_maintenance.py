@@ -162,7 +162,6 @@ class MenuMaintenance(BaseActionsMenu):
             else:
                 break
 
-
     def extract_appearance_presets(self):
         self.cache.local.refresh()
 

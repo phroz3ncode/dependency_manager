@@ -51,7 +51,7 @@ class AppearanceParser(JsonParser):
 
     @staticmethod
     def _clean_person_atom(atom):
-        """ Remove garbage from the person atom """
+        """Remove garbage from the person atom"""
         storables = []
         for storable in atom["storables"]:
             if storable["id"] not in UNUSED_NODES and len(storable) > 1:

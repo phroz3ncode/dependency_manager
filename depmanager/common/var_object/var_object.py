@@ -10,8 +10,8 @@ from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
 from depmanager.common.enums.paths import FAVORITE
 from depmanager.common.enums.variables import MEGABYTE
-from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.parser.parser import VarParser
+from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.ziptools import ZipRead
 from depmanager.common.var_object.var_object_base import VarObjectBase
 from depmanager.common.var_object.var_object_image_lib import VarObjectImageLib

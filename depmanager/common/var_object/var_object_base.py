@@ -37,10 +37,14 @@ class VarObjectBase:
 
     @cached_property
     def relative_path(self) -> str:
+        # Python 3.11 raises a ValueError, python 3.10 does weird stuff if path is not actually relative
         try:
-            return path.relpath(self.original_file_path, self.root_path)
+            if self.root_path in self.original_file_path:
+                return path.relpath(self.original_file_path, self.root_path)
         except ValueError:
-            return self.original_file_path
+            pass
+
+        return self.original_file_path
 
     @cached_property
     def directory(self) -> str:

@@ -92,5 +92,3 @@ class RawParser:
 
         # Replace the bad reference with the good reference
         return line.replace(original_value, replaced_value)
-
-
