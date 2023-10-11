@@ -1,5 +1,6 @@
 IMAGE_LIB_DIR = "_image_lib"
 REPAIR_LIB_DIR = "repair_lib"
+REMOVED_DIR = "removed"
 ADDON_PACKAGE_USER_PREFS_DIR = "AddonPackagesUserPrefs"
 TEMP_REPAIR_DIR = "repair"
 TEMP_OPTIMIZE_DIR = "repair"

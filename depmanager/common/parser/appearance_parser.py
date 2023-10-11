@@ -1,8 +1,6 @@
 import json
 from io import TextIOWrapper
-from os import path
 
-from depmanager.common.enums.ext import Ext
 from depmanager.common.parser.enums import UNUSED_NODES
 from depmanager.common.parser.json_parser import JsonParser
 from depmanager.common.shared.ziptools import ZipRead
@@ -36,7 +34,7 @@ class AppearanceParser(JsonParser):
                     elif "atoms" in json_data:
                         json_data = json_data["atoms"]
                         atoms = [self._clean_person_atom(atom) for atom in self.get_person_atoms(json_data)]
-                        linked_atoms = [atom for atom in self.get_linked_cua_atoms(json_data)]
+                        linked_atoms = list(self.get_linked_cua_atoms(json_data))
 
                     if len(atoms) > 0:
                         for atom_id, atom_contents in atoms:

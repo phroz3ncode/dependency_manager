@@ -32,6 +32,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         infolist=None,
         dependencies=None,
         used_packages=None,
+        metadata=None,
         quick_scan=False,
     ):
         self.quick = quick_scan
@@ -39,6 +40,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         self.infolist = infolist if infolist is not None else self._var_raw_data["infolist"]
         self.dependencies = dependencies if dependencies is not None else self._var_raw_data["dependencies"]
         self.used_packages = used_packages if used_packages is not None else self._var_raw_data["used_packages"]
+        self.metadata = metadata if metadata is not None else self._var_raw_data["metadata"]
         self.contains = contains if contains is not None else ContentType.ref_from_namelist(self.namelist)
         self.var_type = ContentType(self.contains)
         self.favorite = False
@@ -52,6 +54,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
             "infolist": self.infolist,
             "dependencies": self.dependencies,
             "used_packages": {key: list(val) for key, val in self.used_packages.items()},
+            "metadata": self.metadata,
         }
 
     def from_new_path(self, root_path: str, file_path: str):
@@ -64,6 +67,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
             infolist=self.infolist,
             dependencies=self.dependencies,
             used_packages=self.used_packages,
+            metadata=self.metadata,
         )
 
     @classmethod
@@ -77,6 +81,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
             infolist = [(val.filename, val.file_size) for val in read_zf.infolist()]
 
             # Scan files for data
+            metadata = {}
             dependencies = []
             used_packages = defaultdict(set)
 
@@ -87,7 +92,14 @@ class VarObject(VarObjectBase, VarObjectImageLib):
                             if item == "meta.json":
                                 json_data = json.loads(read_item.read())
                                 dependencies = list(self._scan_keys_from_dict(json_data.get("dependencies")))
-                            elif not self.quick:
+
+                                metadata["licenseType"] = json_data.get("licenseType")
+                                metadata["creatorName"] = json_data.get("creatorName")
+                                metadata["packageName"] = json_data.get("packageName")
+                                metadata["programVersion"] = json_data.get("programVersion")
+
+                                # If scripts are using json referencing internally, we should just leave this alone
+                            elif not self.quick and not "Custom/Scripts" in item:
                                 packages = VarParser.scan_with_paths(read_item.readlines())
                                 for package, package_paths in packages.items():
                                     used_packages[package].update(package_paths)
@@ -96,7 +108,12 @@ class VarObject(VarObjectBase, VarObjectImageLib):
                             f"ERROR: Var meta.json cannot be parsed >> {self.file_path}\nException: {repr(err)}"
                         ) from err
 
-        return {"infolist": infolist, "dependencies": dependencies, "used_packages": used_packages}
+        return {
+            "infolist": infolist,
+            "dependencies": dependencies,
+            "used_packages": used_packages,
+            "metadata": metadata,
+        }
 
     @cached_property
     def namelist(self) -> list[str]:
@@ -175,6 +192,22 @@ class VarObject(VarObjectBase, VarObjectImageLib):
             for package_file in package_files:
                 used.append((package, package_file))
         return used
+
+    @property
+    def incorrect_metadata(self) -> bool:
+        # This is a big change not made lightly. Ultimately if a single var tracks every change to all
+        # downstream vars, when you have a ".latest" var that gets updated and adds or upgrades a new
+        # dependency this can result in a MASSIVE need for downstream updates to fix all the metadata.
+        # The native handling of this by storing everything in meta.json just doesn't work well.
+        # As a result we should only store the actual "used_dependencies". During local synchronization,
+        # we can ensure that everything is brought down properly.
+        if (
+            self.dependencies_sorted != self.used_dependencies_sorted
+            or self.metadata.get("creatorName") != self.author
+            or self.metadata.get("packageName") != self.package_name
+        ):
+            return True
+        return False
 
     @cached_property
     def includes_as_list(self) -> list[tuple[str, str, str]]:

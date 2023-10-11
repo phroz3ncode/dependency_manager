@@ -16,7 +16,10 @@ class ZipObj:
     # pylint: disable=consider-using-with
     def read(self):
         if not self.zip_file:
-            self.zip_file = ZipFile(self.file_path, mode="r")
+            try:
+                self.zip_file = ZipFile(self.file_path, mode="r", metadata_encoding="UTF-8")
+            except UnicodeDecodeError:
+                self.zip_file = ZipFile(self.file_path, mode="r", metadata_encoding="latin1")
 
     def write(self):
         if not self.zip_file:

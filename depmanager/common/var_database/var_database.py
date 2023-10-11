@@ -4,6 +4,8 @@ import os
 from collections import defaultdict
 from json import JSONDecodeError
 from os import path
+from typing import Any
+from typing import Dict
 from typing import Set
 from typing import Tuple
 
@@ -258,18 +260,7 @@ class VarDatabase(VarDatabaseImageDB):
         return set(var_list)
 
     def find_unoptimized_vars(self):
-        var_list = set()
-        # progress = ProgressBar(len(self.keys), description="Searching unoptimized vars")
-        for var_id, var in self.vars.items():
-            # progress.inc()
-            # This is a big change not made lightly. Ultimately if a single var tracks every change to all
-            # downstream vars, when you have a ".latest" var that gets updated and adds or upgrades a new
-            # dependency this can result in a MASSIVE need for downstream updates to fix all the metadata.
-            # The native handling of this by storing everything in meta.json just doesn't work well.
-            # As a result we should only store the actual "used_dependencies". During local synchronization,
-            # we can ensure that everything is brought down properly.
-            if var.dependencies_sorted != var.used_dependencies_sorted:
-                var_list.add(var_id)
+        var_list = set(var_id for var_id, var in self.vars.items() if var.incorrect_metadata)
         return var_list
 
     def find_duplication_in_vars(self):
@@ -294,37 +285,73 @@ class VarDatabase(VarDatabaseImageDB):
 
         print(f"CHECKING METADATA {var_ref.var_id}...")
         var_obj = VarObject(var_ref.root_path, var_ref.file_path)
+        if not var_obj.incorrect_metadata:
+            return
 
         failed = False
-        if var_obj.dependencies_sorted == var_obj.used_dependencies_sorted:
-            return
 
         added = len(set(var_obj.used_dependencies_sorted).difference(var_obj.dependencies))
         removed = len(set(var_obj.dependencies).difference(var_obj.used_dependencies_sorted))
         action = f"Adding {added} dependencies. Removing {removed} dependencies."
         print(f"OPTIMIZING {var_obj.var_id}... {action}")
 
+        meta_json_present = False
         temp_file = path.join(var_obj.directory, TEMP_VAR_NAME)
         with ZipReadInto(var_obj.file_path, temp_file) as (read_zf, zf_dest):
             for item in read_zf.infolist():
                 if item.filename == "meta.json":
                     with io.TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
-                        meta = json.loads(read_item.read())
-                        # Fix the contentList
-                        meta["contentList"] = [
-                            r for r in var_obj.namelist if r != "meta.json" and len(path.splitext(r)[1]) > 1
-                        ]
-                        meta["dependencies"] = self.get_dependencies_list_as_dict(var_obj.used_dependencies_sorted)
-                        meta_data = orjson.dumps(meta, option=orjson.OPT_INDENT_2).decode("UTF-8")
+                        meta_json_present = True
+                        metadata_dict = json.loads(read_item.read())
+                        meta_data = self.fix_metadata_dict(metadata_dict, var_obj)
                         zf_dest.writestr(item.filename, meta_data)
                 else:
                     zf_dest.writestr(item.filename, read_zf.read(item.filename))
+
+            if not meta_json_present:
+                meta_data = self.fix_metadata_dict({}, var_obj)
+                zf_dest.writestr("meta.json", meta_data)
 
         if failed:
             os.remove(temp_file)
         else:
             os.remove(var_obj.file_path)
             os.rename(temp_file, var_obj.file_path)
+
+    def fix_metadata_dict(self, metadata_dict: Dict[str, Any], var_obj: VarObject):
+        # Create a meta.json shell if the meta.json was missing
+        if len(metadata_dict) == 0:
+            metadata_dict = {
+                "licenseType": "CC BY",
+                "creatorName": "",
+                "packageName": "",
+                "standardReferenceVersionOption": "Latest",
+                "scriptReferenceVersionOption": "Exact",
+                "description": "",
+                "credits": "",
+                "instructions": "",
+                "promotionalLink": "",
+                "programVersion": "1.22.0.3",
+                "contentList": [],
+                "dependencies": {},
+                "customOptions": {},
+            }
+
+        # Fix the metadata and make sure its up to date
+        if metadata_dict["packageName"] != var_obj.package_name:
+            metadata_dict["creatorName"] = var_obj.author
+            metadata_dict["packageName"] = var_obj.package_name
+            metadata_dict["credits"] = ""
+            metadata_dict["promotionalLink"] = ""
+        # Fix the contentList
+        metadata_dict["contentList"] = [
+            r for r in var_obj.namelist if r != "meta.json" and len(path.splitext(r)[1]) > 1
+        ]
+        # Fix the dependencies
+        metadata_dict["dependencies"] = self.get_dependencies_list_as_dict(var_obj.used_dependencies_sorted)
+        meta_data = orjson.dumps(metadata_dict, option=orjson.OPT_INDENT_2).decode("UTF-8")
+
+        return meta_data
 
     def find_broken_vars(self, health_check=False):
         var_list = set()

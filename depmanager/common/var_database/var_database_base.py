@@ -129,6 +129,7 @@ class VarDatabaseBase(CachedObject):
         return versions
 
     def to_json(self) -> str:
+        # Removing pretty-printing to improve performance
         return orjson.dumps(
             {"rootpath": self.rootpath, "vars": [v.to_dict() for _, v in self.vars.items()]}, option=orjson.OPT_INDENT_2
         ).decode("UTF-8")

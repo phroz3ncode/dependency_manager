@@ -7,6 +7,7 @@ import filedate
 
 from depmanager.common.enums.ext import Ext
 from depmanager.common.enums.paths import IMAGE_LIB_DIR
+from depmanager.common.enums.paths import REMOVED_DIR
 from depmanager.common.shared.progress_bar import ProgressBar
 from depmanager.common.shared.tools import remove_empty_directories
 from depmanager.common.shared.ziptools import ZipRead
@@ -149,7 +150,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
                 print(f"Moving to removed {var_id}: {var_item.sub_directory} to removed")
                 self.manipulate_file(
                     var_id,
-                    os.path.join(var_item.root_path, "removed"),
+                    os.path.join(var_item.root_path, REMOVED_DIR),
                     move=True,
                 )
             elif var_item.sub_directory != new_subdir:

@@ -102,7 +102,6 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
         elif mode == OrganizeMethods.REMOVE_USED_TAG:
             var_list = self.get_used(filters)
             self.db.manipulate_file_list(var_list, "used", remove=True, desc="Untagging used vars")
-            self.db.manipulate_file_list(var_list, "removed")
         elif mode == OrganizeMethods.TO_VERSIONED:
             self.db.manipulate_file_list(self.duplicates, "_versioned", desc="Versioning duplicate vars")
         elif mode == OrganizeMethods.SUFFIX_DEP:
