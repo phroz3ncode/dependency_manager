@@ -1,4 +1,5 @@
 from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
+from depmanager.common.menu_service.menu_extract import MenuExtract
 from depmanager.common.menu_service.menu_maintenance import MenuMaintenance
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
 
@@ -13,6 +14,7 @@ class MenuMain(BaseActionsMenu):
                 ConsoleMenuItem("Add new local to remote", self.organize_local_to_remote),
                 ConsoleMenuItem("Organize remote vars with image_lib", self.organize_with_image_lib),
                 ConsoleMenuItem("> MAINTENANCE TOOLS <", MenuMaintenance(self.cache).menu),
+                ConsoleMenuItem("> EXTRACT TOOLS <", MenuExtract(self.cache).menu),
             ],
         )
 

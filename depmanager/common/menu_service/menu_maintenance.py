@@ -1,4 +1,3 @@
-import os
 from collections import defaultdict
 
 from depmanager.common.enums.ext import Ext
@@ -6,9 +5,7 @@ from depmanager.common.enums.methods import OrganizeMethods
 from depmanager.common.enums.paths import TEMP_REPAIR_DIR
 from depmanager.common.enums.variables import MEGABYTE
 from depmanager.common.menu_service.base_actions_menu import BaseActionsMenu
-from depmanager.common.parser.appearance_parser import AppearanceParser
 from depmanager.common.shared.console_menu_item import ConsoleMenuItem
-from depmanager.common.shared.ziptools import ZipWrite
 
 
 class MenuMaintenance(BaseActionsMenu):
@@ -17,7 +14,6 @@ class MenuMaintenance(BaseActionsMenu):
             "menu",
             [
                 ConsoleMenuItem("REPAIR remote vars", self.repair_and_optimize),
-                ConsoleMenuItem("BACKUP local settings", self.backup_local_settings),
                 ConsoleMenuItem("TAG unused vars", self.add_unused_var_tags),
                 ConsoleMenuItem("UNTAG unused vars", self.remove_unused_var_tags),
                 ConsoleMenuItem("TAG used vars", self.add_used_var_tags),
@@ -25,7 +21,6 @@ class MenuMaintenance(BaseActionsMenu):
                 ConsoleMenuItem("CREATE *.dep from local image_lib", self.build_dep_from_image_lib),
                 ConsoleMenuItem("FIND what uses var", self.search_that_use),
                 ConsoleMenuItem("FIND low value vars", self.search_low_value),
-                ConsoleMenuItem("EXTRACT appearances", self.extract_appearance_presets),
             ],
         )
 
@@ -59,46 +54,6 @@ class MenuMaintenance(BaseActionsMenu):
 
         var_to_process = set()
         var_to_process.update(self.cache.remote.db.find_duplication_in_vars())
-
-    def backup_local_settings(self):
-        root_path = os.path.abspath(os.path.join(self.cache.local.path, ".."))
-        zip_root_path = os.path.abspath(os.path.join(root_path, ".."))
-
-        zip_name = os.path.join(root_path, "vam_custom.zip")
-        if os.path.exists(zip_name):
-            os.remove(zip_name)
-
-        exclude_files = [
-            "config",
-            "MHLab.PATCH.dll",
-            "migrate.log",
-            "UnityCrashHandler64.exe",
-            "UnityPlayer.dll",
-            "VaM (Desktop Mode).bat",
-            "VaM.exe",
-            "VaM_EULA.html",
-            "VaM_Updater.exe",
-            "version",
-            "vrmanifest",
-            "WinPixEventRuntime.dll",
-        ]
-        includes = {
-            root_path: ["AddonPackages", "AddonPackagesUserPrefs", "Custom", "Keys", "Tools", "Saves"],
-            os.path.join(root_path, "AddonPackages"): ["_session"],
-            os.path.join(root_path, "Custom"): ["PluginPresets"],
-            os.path.join(root_path, "Saves"): ["PluginData", "scene"],
-            os.path.join(root_path, "Saves", "scene"): ["MeshedVR"],
-        }
-        file_list = []
-        for root, dirs, files in os.walk(root_path, topdown=True):
-            if root in includes:
-                dirs[:] = [d for d in dirs if d in includes[root]]
-            for file in files:
-                if file not in exclude_files:
-                    file_list.append(os.path.join(root, file))
-        with ZipWrite(zip_name, compress=False) as zf_dest:
-            for item in file_list:
-                zf_dest.write(item, os.path.relpath(item, zip_root_path))
 
     def add_unused_var_tags(self):
         filters = self.get_var_filters()
@@ -161,14 +116,3 @@ class MenuMaintenance(BaseActionsMenu):
                 print(val)
             else:
                 break
-
-    def extract_appearance_presets(self):
-        self.cache.local.refresh()
-
-        appearances = {}
-        for var_id, var_ref in self.cache.local.db.vars.items():
-            parser = AppearanceParser(var_ref)
-            found = parser.extract()
-            if found is not None:
-                appearances[var_id] = found
-        assert True
