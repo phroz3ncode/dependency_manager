@@ -21,12 +21,26 @@ class VarDatabaseService:
     def invalid_local(self):
         return self.var_config.remote_path == self.var_config.local_path
 
+    @property
+    def session_vars(self):
+        session = set()
+        for var_id in self.var_config.session:
+            var_id_parts = var_id.split(".")
+            if len(var_id_parts) == 2:
+                session.add(f"{var_id}.latest")
+            elif len(var_id_parts) == 3:
+                session.add(var_id)
+            elif len(var_id_parts) > 3:
+                session.add(".".join(var_id_parts[:3]))
+        return session
+
     def local_missing(self) -> set[str]:
         """This logic replaces the old dependency loop logic. We assume that if the remote
         database knows the var then it should also know all of the actual used_dependencies.
         """
         all_required = set()
-        for var in self.local.required_vars:
+        # Add session vars to required dependencies
+        for var in self.local.required_vars.union(self.session_vars):
             all_required.add(var)
             # If the dependency is known to the remote_db, we should make sure we have all real dependencies
             # If it is unknown we will defer what is needed to the local dependencies, which may be right

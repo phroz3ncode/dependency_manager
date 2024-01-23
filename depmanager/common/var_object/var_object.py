@@ -4,7 +4,9 @@ from io import TextIOWrapper
 from json import JSONDecodeError
 from os import path
 from typing import Any
+from typing import Dict
 from typing import List
+from typing import Union
 
 from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
@@ -44,7 +46,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
         self.contains = contains if contains is not None else ContentType.ref_from_namelist(self.namelist)
         self.var_type = ContentType(self.contains)
         self.favorite = False
-        self.favorite_subdirectory = None
+        self.favorite_should_not_organize = False
 
     def to_dict(self):
         return {
@@ -99,7 +101,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
                                 metadata["programVersion"] = json_data.get("programVersion")
 
                                 # If scripts are using json referencing internally, we should just leave this alone
-                            elif not self.quick and not "Custom/Scripts" in item:
+                            elif not self.quick and not "Custom/Scripts" in item and not "Saves/PluginData" in item:
                                 packages = VarParser.scan_with_paths(read_item.readlines())
                                 for package, package_paths in packages.items():
                                     used_packages[package].update(package_paths)
@@ -129,31 +131,47 @@ class VarObject(VarObjectBase, VarObjectImageLib):
 
     @cached_property
     def preferred_subdirectory(self) -> str:
+        # Custom content should be stored in scenes/custom
         if self.is_custom:
             return self.var_type.DIR_CUSTOM
 
+        # Check if the subdirectory is partially correct, contains favorite and
+        # set the default directory
         contains_vartype_in_subdir = self.var_type.type in self.sub_directory
         contains_favorite_in_subdir = FAVORITE in self.sub_directory
-
         preferred_subdirectory = self.var_type.type_subdirectory
+
+        # Versioned files should stay versions
         if self.is_versioned:
             return self.sub_directory
+        # For scene and look types...
         if self.is_scene_type:
+            # Don't move scene files
             if ContentType.DIR_SCENE in self.sub_directory:
                 return self.sub_directory
+            # Allow favorites in looks subdirectories
             if ContentType.DIR_LOOK in self.sub_directory:
                 if not self.favorite:
                     return self.sub_directory
                 if self.favorite and contains_favorite_in_subdir:
                     return self.sub_directory
                 preferred_subdirectory = self.sub_directory
+        # For asset types
         else:
             if contains_vartype_in_subdir and not self.favorite:
                 return self.sub_directory
             if contains_vartype_in_subdir and self.favorite and contains_favorite_in_subdir:
                 return self.sub_directory
+            if contains_vartype_in_subdir:
+                preferred_subdirectory = self.sub_directory
 
-        if self.favorite:
+        # Only append favorite if the subdirectory isn't "scenes"
+        # Skip organizing the asset category if its flagged to be ignored
+        if (
+            self.favorite
+            and not self.favorite_should_not_organize
+            and preferred_subdirectory != self.var_type.DIR_SCENE
+        ):
             preferred_subdirectory = f"{preferred_subdirectory}_{FAVORITE}"
 
         return preferred_subdirectory
@@ -236,8 +254,11 @@ class VarObject(VarObjectBase, VarObjectImageLib):
             file_path = file_parts[0].lower()
             extension = file_parts[1].lower()
             if extension == Ext.JSON:
-                if "Saves" in file:
-                    files["saves"].add(file.replace(Ext.JSON, Ext.EMPTY))
+                if "saves" in file_path:
+                    if "person" not in file_path:
+                        files["saves"].add(file.replace(Ext.JSON, Ext.EMPTY))
+                    else:
+                        files["appearance"].add(file.replace(Ext.JSON, Ext.EMPTY))
             elif extension == Ext.VAP:
                 if "appearance" in file_path:
                     files["appearance"].add(file.replace(Ext.VAP, Ext.EMPTY))
@@ -265,6 +286,7 @@ class VarObject(VarObjectBase, VarObjectImageLib):
             required_dependencies.add(key)
         return required_dependencies
 
-    def tag_as_favorite(self, favorites: List[str]):
-        if self.author in favorites:
+    def tag_as_favorite(self, favorites: Dict[str, Union[List[str], Dict[str, bool]]]):
+        if self.author in favorites.get("favorites", []):
             self.favorite = True
+            self.favorite_should_not_organize = favorites["favorites_ignore"].get(self.var_type.type, False)

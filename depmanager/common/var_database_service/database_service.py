@@ -1,6 +1,7 @@
 import json
 import os
-from typing import List
+from typing import Any
+from typing import Dict
 
 from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
@@ -18,7 +19,7 @@ from depmanager.common.var_database_service.database_service_tools import Databa
 
 
 class DatabaseService(CachedObject, DatabaseServiceTools):
-    def __init__(self, root: str, image_root: str = None, quick_scan: bool = False, favorites: List[str] = None):
+    def __init__(self, root: str, image_root: str = None, quick_scan: bool = False, favorites: Dict[str, Any] = None):
         self.root = root
         self.image_root = image_root
         self.quick_scan = quick_scan
@@ -95,13 +96,13 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
             self.db.manipulate_file_list(var_list, "unused", suffix=True, desc="Tagging unused vars")
         elif mode == OrganizeMethods.REMOVE_UNUSED_TAG:
             var_list = self.get_unused(filters)
-            self.db.manipulate_file_list(var_list, "unused", remove=True, desc="Untagging unused vars")
+            self.db.manipulate_file_list(var_list, "_unused", remove=True, desc="Untagging unused vars")
         elif mode == OrganizeMethods.ADD_USED_TAG:
             var_list = self.get_used(filters)
             self.db.manipulate_file_list(var_list, "used", suffix=True, desc="Tagging used vars")
         elif mode == OrganizeMethods.REMOVE_USED_TAG:
             var_list = self.get_used(filters)
-            self.db.manipulate_file_list(var_list, "used", remove=True, desc="Untagging used vars")
+            self.db.manipulate_file_list(var_list, "_used", remove=True, desc="Untagging used vars")
         elif mode == OrganizeMethods.TO_VERSIONED:
             self.db.manipulate_file_list(self.duplicates, "_versioned", desc="Versioning duplicate vars")
         elif mode == OrganizeMethods.SUFFIX_DEP:

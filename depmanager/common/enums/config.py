@@ -2,8 +2,11 @@ import ctypes
 import json
 import os
 import sys
+from typing import Dict
 from typing import List
+from typing import Union
 
+from depmanager.common.enums.content_type import ContentType
 from depmanager.common.shared.cached_property import cached_property
 
 # pylint: disable=protected-access
@@ -18,6 +21,17 @@ class Config:
         "repair_on_import": True,
         "repair_auto_skip_on_missing": False,
         "repair_auto_fix_on_missing": False,
+        "session": [],
+        "favorites_ignore": {
+            ContentType.CLOTHING: False,
+            ContentType.HAIR: False,
+            ContentType.MORPH: False,
+            ContentType.PLUGIN: False,
+            ContentType.POSE: False,
+            ContentType.SOUND: False,
+            ContentType.TEXTURE: False,
+            ContentType.UNITY: False,
+        },
         "favorites": ["author_name_example"],
     }
 
@@ -90,6 +104,13 @@ class Config:
     def auto_fix(self) -> bool:
         return self.config.get("repair_auto_fix_on_missing", False)
 
+    @property
+    def session(self) -> List[str]:
+        return self.config.get("session")
+
     @cached_property
-    def favorites(self) -> List[str]:
-        return list(self.config.get("favorites", []))
+    def favorites(self) -> Dict[str, Union[List[str], Dict[str, bool]]]:
+        return {
+            "favorites": list(self.config.get("favorites", [])),
+            "favorites_ignore": self.config.get("favorites_ignore", {}),
+        }

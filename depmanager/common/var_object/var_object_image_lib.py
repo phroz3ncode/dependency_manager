@@ -175,7 +175,7 @@ class VarObjectImageLib:
             # Give up and return the original image
             return None
 
-        except ValueError:
+        except (ValueError, OSError):
             return None
 
     def compress(self, png_only=False):

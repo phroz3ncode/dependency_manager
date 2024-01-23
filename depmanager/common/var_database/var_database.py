@@ -20,6 +20,7 @@ from depmanager.common.enums.variables import TEMP_VAR_NAME
 from depmanager.common.parser.parser import VarParser
 from depmanager.common.shared.cached_property import cached_property
 from depmanager.common.shared.progress_bar import ProgressBar
+from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.shared.tools import find_fuzzy_file_match
 from depmanager.common.shared.tools import select_fuzzy_match
 from depmanager.common.shared.ziptools import ZipReadInto
@@ -337,8 +338,8 @@ class VarDatabase(VarDatabaseImageDB):
                 "customOptions": {},
             }
 
-        # Fix the metadata and make sure its up to date
-        if metadata_dict["packageName"] != var_obj.package_name:
+        # Fix the metadata and make sure it is up to date
+        if metadata_dict["creatorName"] != var_obj.author or metadata_dict["packageName"] != var_obj.package_name:
             metadata_dict["creatorName"] = var_obj.author
             metadata_dict["packageName"] = var_obj.package_name
             metadata_dict["credits"] = ""
@@ -383,7 +384,7 @@ class VarDatabase(VarDatabaseImageDB):
                 var_list.add(var_id)
         return var_list
 
-    def find_replacement_from_repair_index(self, filepath: str, exact_only=False):
+    def find_replacement_from_repair_index(self, filepath: str, approx_packages=None, approx_types=None):
         """Find the best occurrences from self.repair_index. The repair index is sorted
         such that the most preferable references will be hit first by next
         """
@@ -394,12 +395,23 @@ class VarDatabase(VarDatabaseImageDB):
             return result[0], result[1]
 
         # If exact only mode, don't attempt to fuzzy match
-        if exact_only:
+        if approx_packages is None and approx_types is None:
             return None, None
 
         # Attempt to return the best filename match
+        # Only search within approx_packages to prevent incorrect matching of generic names
         search_val = path.basename(filepath).lower()
-        found_approx = list((index[0], index[1]) for index in self.repair_index if index[2].lower() == search_val)
+        search_ext = os.path.splitext(filepath)[-1]
+        if approx_types is not None and search_ext in approx_types:
+            found_approx = list((index[0], index[1]) for index in self.repair_index if index[2].lower() == search_val)
+        elif approx_packages is not None:
+            found_approx = list(
+                (index[0], index[1])
+                for index in self.repair_index
+                if are_substrings_in_str(index[0], approx_packages) and index[2].lower() == search_val
+            )
+        else:
+            found_approx = []
         return select_fuzzy_match(filepath, found_approx)
 
     def should_update_file_to_fixed(self, package: str) -> bool:
@@ -576,8 +588,14 @@ class VarDatabase(VarDatabaseImageDB):
                 mappings.add((replace_key, None, None, None))
                 continue
 
+            # Allow more generic matching within any similar packages and also scan the var package itself
+            approx_packages = [var_obj.duplicate_id, ".".join(check_package.split(".")[:-1])]
+            # Allow binary types to be replaced with approx by default
+            approx_types = Ext.TYPES_PLUGIN + Ext.TYPES_ELEM + Ext.TYPES_JSON
             # Search to replace invalid reference
-            found_id, found_path = self.find_replacement_from_repair_index(check_package_file)
+            found_id, found_path = self.find_replacement_from_repair_index(
+                check_package_file, approx_packages, approx_types
+            )
             if found_id is None and check_package in ("SELF", "SELF_UNREF"):
                 # Attempt a local fuzzy replacement (maybe the file is misspelled)
                 found_id, found_path = find_fuzzy_file_match(check_package_file, var_obj.includes_as_list, threshold=3)

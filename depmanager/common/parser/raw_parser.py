@@ -6,6 +6,11 @@ from depmanager.common.enums.ext import Ext
 from depmanager.common.shared.tools import are_substrings_in_str
 from depmanager.common.shared.tools import substrings_in_str
 
+DEAD_TRIGGERS = [
+    "toggle:",
+    "clothing:",
+]
+
 
 class RawParser:
     @staticmethod
@@ -33,7 +38,9 @@ class RawParser:
                 package_parts = package_str.split(":/")
                 package = "::".join(package_parts[:-1])
                 # If there are "name" or "displayName" hooks we should dump the A_ referencing
-                if package[:2] == "A_" and "name" in line.lower():
+                if (package[:2] == "A_" and "name" in line.lower()) or are_substrings_in_str(
+                    line.lower(), DEAD_TRIGGERS
+                ):
                     if ":" in package:
                         package = package.split(":")[1]
                     else:

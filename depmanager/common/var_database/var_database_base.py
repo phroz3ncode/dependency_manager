@@ -9,14 +9,15 @@ import zipfile
 from collections import defaultdict
 from json import JSONDecodeError
 from os import path
+from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 
 from orjson import orjson
 
 from depmanager.common.enums.ext import Ext
 from depmanager.common.enums.paths import IMAGE_LIB_DIR
+from depmanager.common.enums.paths import REMOVED_DIR
 from depmanager.common.enums.paths import REPAIR_LIB_DIR
 from depmanager.common.enums.variables import TEMP_VAR_NAME
 from depmanager.common.shared.cached_object import CachedObject
@@ -37,14 +38,14 @@ class VarDatabaseBase(CachedObject):
     quick_scan: bool
     scanned: bool
 
-    def __init__(self, root: str = None, quick_scan: bool = False, favorites: List[str] = None):
+    def __init__(self, root: str = None, quick_scan: bool = False, favorites: Dict[str, Any] = None):
         self._files_added_or_removed = False
 
         self.rootpath = root
         self.root_db = "remote_db.json"
         self.vars = {}
         self.quick_scan = quick_scan
-        self.favorites = favorites if favorites else []
+        self.favorites = favorites if favorites else {}
 
         self.load()
 
@@ -159,7 +160,7 @@ class VarDatabaseBase(CachedObject):
                 self.refresh()
 
     def ignore_directory(self, dirpath: str) -> bool:
-        return IMAGE_LIB_DIR in dirpath or REPAIR_LIB_DIR in dirpath or "_ignore" in dirpath
+        return IMAGE_LIB_DIR in dirpath or REPAIR_LIB_DIR in dirpath or "_ignore" in dirpath or REMOVED_DIR in dirpath
 
     def get_var_from_filepath(self, file_path: str, is_image: bool = False) -> Optional[VarObject]:
         filename = path.basename(file_path)
