@@ -183,4 +183,4 @@ class VarDatabaseImageDB(VarDatabaseBase):
             if os.path.exists(src_file) and not os.path.exists(dest_file):
                 if not os.path.exists(dest_path):
                     os.makedirs(dest_path, exist_ok=True)
-                    os.rename(src_file, dest_file)
+                os.rename(src_file, dest_file)

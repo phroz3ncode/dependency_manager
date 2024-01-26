@@ -57,19 +57,27 @@ class MenuMaintenance(BaseActionsMenu):
 
     def add_unused_var_tags(self):
         filters = self.get_var_filters()
-        self.cache.remote.organize_files(mode=OrganizeMethods.ADD_UNUSED_TAG, filters=filters)
+        self.cache.remote.organize_files(
+            mode=OrganizeMethods.ADD_UNUSED_TAG, filters=filters, remove_empty=True, save_on_complete=True
+        )
 
     def remove_unused_var_tags(self):
         filters = self.get_var_filters()
-        self.cache.remote.organize_files(mode=OrganizeMethods.REMOVE_UNUSED_TAG, filters=filters)
+        self.cache.remote.organize_files(
+            mode=OrganizeMethods.REMOVE_UNUSED_TAG, filters=filters, remove_empty=True, save_on_complete=True
+        )
 
     def add_used_var_tags(self):
         filters = self.get_var_filters()
-        self.cache.remote.organize_files(mode=OrganizeMethods.ADD_USED_TAG, filters=filters)
+        self.cache.remote.organize_files(
+            mode=OrganizeMethods.ADD_USED_TAG, filters=filters, remove_empty=True, save_on_complete=True
+        )
 
     def remove_used_var_tags(self):
         filters = self.get_var_filters()
-        self.cache.remote.organize_files(mode=OrganizeMethods.REMOVE_USED_TAG, filters=filters)
+        self.cache.remote.organize_files(
+            mode=OrganizeMethods.REMOVE_USED_TAG, filters=filters, remove_empty=True, save_on_complete=True
+        )
 
     def build_dep_from_image_lib(self):
         self.cache.remote.db.save_image_db_as_dep()

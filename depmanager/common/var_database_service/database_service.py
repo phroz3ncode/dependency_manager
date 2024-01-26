@@ -2,6 +2,7 @@ import json
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 
 from depmanager.common.enums.content_type import ContentType
 from depmanager.common.enums.ext import Ext
@@ -63,10 +64,10 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
     def display_list(self, var_id_list, prefix, show_used_by=False):
         self.db.display_var_list(var_id_list, prefix, show_used_by)
 
-    def get_unused(self, filters=None):
+    def get_unused(self, filters: List[str] = None):
         return self.db.find_unused_vars(filters=filters)
 
-    def get_used(self, filters=None):
+    def get_used(self, filters: List[str] = None):
         return self.db.find_unused_vars(filters=filters, invert=True)
 
     def get_repairable(self, filters=None, include_clothing=False):
@@ -88,7 +89,9 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
                     else:
                         json.dump(PLUGIN_TEMPLATE_ENABLE, write_file, indent=4)
 
-    def organize_files(self, mode, filters=None, remove_empty=True):
+    def organize_files(
+        self, mode: str, filters: List[str] = None, remove_empty: bool = True, save_on_complete: bool = False
+    ):
         if mode == OrganizeMethods.AUTO:
             self.db.manipulate_file_list(self.db.keys, sub_directory="AUTO", desc="Auto organizing vars")
         elif mode == OrganizeMethods.ADD_UNUSED_TAG:
@@ -115,6 +118,11 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
 
         if remove_empty:
             remove_empty_directories(self.db.rootpath)
+            remove_empty_directories(self.db.image_db_local_path)
+
+        if save_on_complete:
+            self.db.save()
+            self.db.save_image_db()
 
     def auto_organize(self):
         self.db.refresh()
