@@ -11,7 +11,9 @@ from json import JSONDecodeError
 from os import path
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from orjson import orjson
 
@@ -275,13 +277,14 @@ class VarDatabaseBase(CachedObject):
 
     def manipulate_file_list(
         self, var_id_list, sub_directory, append=False, remove=False, suffix=False, desc=None
-    ) -> None:
+    ) -> List[Tuple[str, str, str]]:
         if len(var_id_list) == 0:
-            return
+            return []
 
         if desc is None:
             desc = "Moving/Copying vars"
 
+        files_moved = []
         progress = ProgressBar(len(var_id_list), desc)
         for var_id in var_id_list:
             progress.inc()
@@ -309,11 +312,14 @@ class VarDatabaseBase(CachedObject):
                     var_sub_directory = sub_directory
 
             if var_sub_directory is not None:
+                files_moved.append((var_id, var.sub_directory, var_sub_directory))
                 self.manipulate_file(
                     var.var_id,
                     path.join(var.root_path, var_sub_directory),
                     move=True,
                 )
+
+        return files_moved
 
     def dedupe_dependency_list(self, dependencies: set[str]) -> set[str]:
         # If an exact version is needed, we only need the exact reference, it will double as latest

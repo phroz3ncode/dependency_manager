@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from os import path
 from typing import List
+from typing import Tuple
 
 import filedate
 
@@ -165,3 +166,21 @@ class VarDatabaseImageDB(VarDatabaseBase):
         self.save()
         self.refresh_image_db()  # Refresh checks if there are any removed files to be regenerated
         self.save_image_db()
+
+    def manipulate_image_file_list(self, files_moved: List[Tuple[str, str, str]], desc=None) -> None:
+        if len(files_moved) == 0:
+            return
+
+        if desc is None:
+            desc = "Moving/Copying images"
+
+        progress = ProgressBar(len(files_moved), desc)
+        for (var_id, var_src_dir, var_dest_dir) in files_moved:
+            progress.inc()
+            src_file = os.path.join(self.image_db_local_path, var_src_dir, f"{var_id}.jpg")
+            dest_path = os.path.join(os.path.join(self.image_db_local_path, var_dest_dir))
+            dest_file = os.path.join(self.image_db_local_path, var_dest_dir, f"{var_id}.jpg")
+            if os.path.exists(src_file) and not os.path.exists(dest_file):
+                if not os.path.exists(dest_path):
+                    os.makedirs(dest_path, exist_ok=True)
+                    os.rename(src_file, dest_file)

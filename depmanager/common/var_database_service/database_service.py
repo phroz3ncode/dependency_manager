@@ -93,16 +93,20 @@ class DatabaseService(CachedObject, DatabaseServiceTools):
             self.db.manipulate_file_list(self.db.keys, sub_directory="AUTO", desc="Auto organizing vars")
         elif mode == OrganizeMethods.ADD_UNUSED_TAG:
             var_list = self.get_unused(filters)
-            self.db.manipulate_file_list(var_list, "unused", suffix=True, desc="Tagging unused vars")
+            files_moved = self.db.manipulate_file_list(var_list, "unused", suffix=True, desc="Tagging unused vars")
+            self.db.manipulate_image_file_list(files_moved)
         elif mode == OrganizeMethods.REMOVE_UNUSED_TAG:
             var_list = self.get_unused(filters)
-            self.db.manipulate_file_list(var_list, "_unused", remove=True, desc="Untagging unused vars")
+            files_moved = self.db.manipulate_file_list(var_list, "_unused", remove=True, desc="Untagging unused vars")
+            self.db.manipulate_image_file_list(files_moved)
         elif mode == OrganizeMethods.ADD_USED_TAG:
             var_list = self.get_used(filters)
-            self.db.manipulate_file_list(var_list, "used", suffix=True, desc="Tagging used vars")
+            files_moved = self.db.manipulate_file_list(var_list, "used", suffix=True, desc="Tagging used vars")
+            self.db.manipulate_image_file_list(files_moved)
         elif mode == OrganizeMethods.REMOVE_USED_TAG:
             var_list = self.get_used(filters)
-            self.db.manipulate_file_list(var_list, "_used", remove=True, desc="Untagging used vars")
+            files_moved = self.db.manipulate_file_list(var_list, "_used", remove=True, desc="Untagging used vars")
+            self.db.manipulate_image_file_list(files_moved)
         elif mode == OrganizeMethods.TO_VERSIONED:
             self.db.manipulate_file_list(self.duplicates, "_versioned", desc="Versioning duplicate vars")
         elif mode == OrganizeMethods.SUFFIX_DEP:
