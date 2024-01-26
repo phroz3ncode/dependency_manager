@@ -181,6 +181,7 @@ class VarDatabaseImageDB(VarDatabaseBase):
             dest_path = os.path.join(os.path.join(self.image_db_local_path, var_dest_dir))
             dest_file = os.path.join(self.image_db_local_path, var_dest_dir, f"{var_id}.jpg")
             if os.path.exists(src_file) and not os.path.exists(dest_file):
+                self._images_added_or_removed = True
                 if not os.path.exists(dest_path):
                     os.makedirs(dest_path, exist_ok=True)
                 os.rename(src_file, dest_file)
