@@ -231,13 +231,17 @@ class VarObjectImageLib:
         os.remove(temp_file)
         return 0
 
-    def get_image(self, image_name, image_format) -> Image.Image:
-        try:
+    def get_image(self, image_name, image_format=None) -> Image.Image:
+        if image_format is None:
             with ZipRead(self.file_path) as zf_src:
-                image_data = zf_src.read(f"{image_name}{image_format}")
-        except KeyError:
-            with ZipRead(self.file_path) as zf_src:
-                image_data = zf_src.read(f"{image_name}{image_format.upper()}")
+                image_data = zf_src.read(f"{image_name}")
+        else:
+            try:
+                with ZipRead(self.file_path) as zf_src:
+                    image_data = zf_src.read(f"{image_name}{image_format}")
+            except KeyError:
+                with ZipRead(self.file_path) as zf_src:
+                    image_data = zf_src.read(f"{image_name}{image_format.upper()}")
 
         stream = BytesIO(image_data)
         img = Image.open(stream)

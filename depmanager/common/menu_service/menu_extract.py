@@ -47,7 +47,7 @@ class MenuExtract(BaseActionsMenu):
             "WinPixEventRuntime.dll",
         ]
         includes = {
-            root_path: ["AddonPackages", "AddonPackagesUserPrefs", "Custom", "Keys", "Tools", "Saves"],
+            root_path: ["AddonPackages", "Custom", "Keys", "Tools", "Saves"],
             os.path.join(root_path, "AddonPackages"): ["_session"],
             os.path.join(root_path, "Custom"): ["PluginPresets"],
             os.path.join(root_path, "Saves"): ["PluginData", "scene"],
@@ -67,13 +67,18 @@ class MenuExtract(BaseActionsMenu):
     def extract_appearance_presets(self):
         self.cache.local.refresh()
 
-        appearances = {}
-        for var_id, var_ref in self.cache.local.db.vars.items():
+        appearance_storage = os.path.realpath(
+            os.path.join(self.cache.local.db.rootpath, "..", "Custom", "Atom", "Person", "Appearance")
+        )
+        linked_storage = os.path.realpath(
+            os.path.join(self.cache.local.db.rootpath, "..", "Custom", "Scripts", "Blazedust", "CUAManager", "presets")
+        )
+        os.makedirs(appearance_storage, exist_ok=True)
+        os.makedirs(linked_storage, exist_ok=True)
+
+        for _, var_ref in self.cache.local.db.vars.items():
             parser = AppearanceParser(var_ref)
-            found = parser.extract()
-            if found is not None:
-                appearances[var_id] = found
-        assert True
+            parser.extract_to_file(appearance_storage, linked_storage)
 
     def extract_clothing_presets(self):
         self.cache.local.refresh()

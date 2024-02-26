@@ -7,4 +7,4 @@ MEGABYTE = KILOBYTE * 1024
 GIGABYTE = MEGABYTE * 1024
 
 TEMP_VAR_NAME = "temp.temp.1.var"
-BACKWARDS_COMPAT_PLUGIN_AUTHORS = ["AcidBubbles", "Hunting-Succubus", "MacGruber"]
+BACKWARDS_COMPAT_PLUGIN_AUTHORS = ["Hunting-Succubus", "MacGruber"]  # "AcidBubbles"
