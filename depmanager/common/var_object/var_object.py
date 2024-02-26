@@ -235,16 +235,23 @@ class VarObject(VarObjectBase, VarObjectImageLib):
                 includes.append((self.var_id, row, path.basename(row)))
         return includes
 
-    @cached_property
-    def json_like_files(self) -> list[str]:
+    def split_files_on_extension(self, allowed_extensions: list[str]) -> list[str]:
         files = []
         for file in self.namelist:
             file_parts = path.splitext(file)
-            if file_parts[1].lower() in (Ext.JSON, Ext.VAP, Ext.VAJ):
+            if file_parts[1].lower() in allowed_extensions:
                 if file == "meta.json" or "Custom/Scripts/" in file:
                     continue
                 files.append(file)
         return files
+
+    @cached_property
+    def json_like_files(self) -> list[str]:
+        return self.split_files_on_extension([Ext.JSON, Ext.VAP, Ext.VAJ])
+
+    @cached_property
+    def json_files(self) -> list[str]:
+        return self.split_files_on_extension([Ext.JSON])
 
     @cached_property
     def files(self) -> defaultdict[str, set[str]]:

@@ -76,7 +76,9 @@ class MenuExtract(BaseActionsMenu):
         os.makedirs(appearance_storage, exist_ok=True)
         os.makedirs(linked_storage, exist_ok=True)
 
+        progress = ProgressBar(len(self.cache.local.db.vars), description="Extracting appearance presets")
         for _, var_ref in self.cache.local.db.vars.items():
+            progress.inc()
             parser = AppearanceParser(var_ref)
             parser.extract_to_file(appearance_storage, linked_storage)
 

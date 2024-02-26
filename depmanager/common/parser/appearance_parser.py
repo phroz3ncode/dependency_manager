@@ -27,7 +27,7 @@ class AppearanceParser(JsonParser):
         linked_cua_atoms = []
 
         with ZipRead(self.var.file_path) as read_zf:
-            for item in self.var.json_like_files:
+            for item in self.var.json_files:
                 atoms, linked_atoms = [], []
                 with TextIOWrapper(read_zf.open(item, "r"), encoding="UTF-8") as read_item:
                     json_data = json.loads(read_item.read())
