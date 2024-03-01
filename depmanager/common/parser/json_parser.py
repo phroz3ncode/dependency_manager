@@ -1,4 +1,7 @@
+from orjson import orjson
+
 from depmanager.common.shared.tools import are_substrings_in_str
+from depmanager.common.shared.tools import is_str_in_substrings
 
 
 class JsonParser:
@@ -16,16 +19,74 @@ class JsonParser:
 
     @classmethod
     def get_person_atoms(cls, atom_elems):
-        return list(filter(lambda v: cls.contains_geometry_storable(v["storables"]), atom_elems))
+        person_atoms = []
+        for atom_elem in atom_elems:
+            if cls.contains_geometry_storable(atom_elem["storables"]):
+                person_atoms.append(atom_elem)
+        return person_atoms
 
     @classmethod
-    def get_linked_cua_atoms(cls, atom_elems):
-        return list(
-            filter(
-                lambda v: v["type"] == "CustomUnityAsset" and cls.contains_cua_linkto_storable(v["storables"]),
-                atom_elems,
-            )
-        )
+    def get_linked_cua_atoms(cls, atom_elems, filter_id=None):
+        linked_cua_atoms = []
+        for atom_elem in atom_elems:
+            is_custom_unity_asset = atom_elem.get("type") == "CustomUnityAsset"
+            if is_custom_unity_asset and cls.contains_cua_linkto_storable(atom_elem["storables"]):
+                if filter_id:
+                    atom_control = cls.get_linked_cua_atom_control(atom_elem)
+                    link_from = cls.get_linked_cua_atom_link_from(atom_control)
+                    if filter_id != link_from:
+                        continue
+                linked_cua_atoms.append(atom_elem)
+        return linked_cua_atoms
+
+    @classmethod
+    def get_linked_cua_atom_control(cls, atom_elem):
+        return next((storable for storable in atom_elem["storables"] if storable["id"] == "control"), {})
+
+    @classmethod
+    def get_linked_cua_atom_link_from(cls, linked_cua_atom_control):
+        return linked_cua_atom_control.get("linkTo", "").split(":")[0]
+
+    @classmethod
+    def get_linked_cua_atom_link_to(cls, linked_cua_atom_control):
+        return linked_cua_atom_control.get("linkTo", "").split(":")[-1]
+
+    @classmethod
+    def replace_self_references_with_id(cls, atom, self_id):
+        """Replace self references with self_id"""
+        storables = []
+        for storable in atom["storables"]:
+            if len(storable) > 1:
+                storable = orjson.loads(orjson.dumps(storable).decode("utf-8").replace("SELF:", f"{self_id}:"))
+                storables.append(storable)
+        atom["storables"] = storables
+        return atom
+
+    @classmethod
+    def get_non_rigid_storables(cls, atom):
+        """Remove"""
+        non_rigid_storables = []
+        for storable in atom["storables"]:
+            # Always remove triggers
+            has_triggers = is_str_in_substrings("trigger", storable.keys())
+            has_rigid = is_str_in_substrings("pos", storable.keys())
+            if has_rigid or has_triggers:
+                continue
+
+            non_rigid_storables.append(storable)
+        return non_rigid_storables
+
+    @classmethod
+    def get_linked_cua_atoms_by_atom_id(cls, atom_elems, atom_id):
+        linked_cua_atoms = cls.get_linked_cua_atoms(atom_elems)
+        linked_cua_atoms_by_atom_id = []
+        for linked_cua_atom in linked_cua_atoms:
+            linked_storables = linked_cua_atom["storables"]
+            control = next(storable for storable in linked_storables if storable.get("id") == "control")
+            control_id = control.get("linkTo", "").split(":")[0]
+            if control_id == atom_id:
+                linked_cua_atoms_by_atom_id.append(linked_cua_atom)
+        return linked_cua_atoms_by_atom_id
 
     # @classmethod
     # def get_linked_cua_atoms(cls, atom_elems):

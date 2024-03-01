@@ -7,3 +7,5 @@ orjson~=3.9.8
 filedate~=2.0
 imagequant~=1.0.4
 pyinstaller~=5.13.2
+
+numpy~=1.26.4
