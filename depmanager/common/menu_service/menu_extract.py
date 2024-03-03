@@ -67,20 +67,12 @@ class MenuExtract(BaseActionsMenu):
     def extract_appearance_presets(self):
         self.cache.local.refresh()
 
-        appearance_storage = os.path.realpath(
-            os.path.join(self.cache.local.db.rootpath, "..", "Custom", "Atom", "Person", "Appearance")
-        )
-        linked_storage = os.path.realpath(
-            os.path.join(self.cache.local.db.rootpath, "..", "Custom", "Scripts", "Blazedust", "CUAManager", "presets")
-        )
-        os.makedirs(appearance_storage, exist_ok=True)
-        os.makedirs(linked_storage, exist_ok=True)
-
+        root_dir = os.path.realpath(os.path.join(self.cache.local.db.rootpath, ".."))
         progress = ProgressBar(len(self.cache.local.db.vars), description="Extracting appearance presets")
         for _, var_ref in self.cache.local.db.vars.items():
             progress.inc()
             parser = AppearanceParser(var_ref)
-            parser.extract_to_file(appearance_storage, linked_storage)
+            parser.extract_to_file(root_dir)
 
     def extract_clothing_presets(self):
         self.cache.local.refresh()

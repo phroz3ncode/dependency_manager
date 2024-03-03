@@ -6,6 +6,7 @@ class Ext:
     PREFS = ".prefs"
     VAP = ".vap"
     VMI = ".vmi"
+    VMB = ".vmb"
     VAM = ".vam"
     VAJ = ".vaj"
     VAR = ".var"
