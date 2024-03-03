@@ -32,8 +32,8 @@ class AppearanceParser(JsonParser):
     def valid(self):
         return self.var.is_scene_type
 
-    def extract_to_file(self, root_dir):
-        person_atoms = self.extract_person_atoms()
+    def extract_to_file(self, root_dir, hair_only=False):
+        person_atoms = self.extract_person_atoms(hair_only=hair_only)
 
         for person_atom in person_atoms:
             preset_name = person_atom["preset_name"]
@@ -115,7 +115,7 @@ class AppearanceParser(JsonParser):
                     with open(options_path, "w", encoding="UTF-8") as write_file:
                         write_file.write(options_json)
 
-    def extract_person_atoms(self):
+    def extract_person_atoms(self, hair_only=False):
         person_atoms = []
 
         if not self.valid:
@@ -142,7 +142,9 @@ class AppearanceParser(JsonParser):
                             random_id = self.get_random_id(filename, atom["id"])
                             preset_name = f"{self.var.duplicate_id}_{atom['id']}_{random_id}".replace(" ", "_")
                             # Get linked cuas
-                            atom, linked_cuas = self.get_linked_cua_preset(json_data, atom, preset_name)
+                            atom, linked_cuas = self.get_linked_cua_preset(
+                                json_data, atom, preset_name, hair_only=hair_only
+                            )
                             # Remove all rigid bodies
                             preset = {
                                 "setUnlistedParamsToDefault": "true",
@@ -170,10 +172,9 @@ class AppearanceParser(JsonParser):
             preset_image = self.var.get_image(image_files[0])
         return preset_image
 
-    def get_linked_cua_preset(self, json_data, atom, preset_name):
+    def get_linked_cua_preset(self, json_data, atom, preset_name, hair_only=False):
         rb_utils = RigidBodyUtils(atom)
-        linked_cuas = self.get_linked_cua_atoms(json_data, filter_id=atom["id"])
-        linked_cuas = [rb_utils.update_cuab_link(linked_cua) for linked_cua in linked_cuas]
+        linked_cuas = rb_utils.get_linked_cua_atoms(json_data, atom["id"], hair_only=hair_only)
         if len(linked_cuas) == 0:
             return atom, None
 

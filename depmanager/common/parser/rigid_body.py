@@ -257,6 +257,8 @@ class RigidBodyUtils:
         "penisTipControl": "control",
     }
 
+    HAIR_ONLY = ["head", "neck"]
+
     def __init__(self, atom: Dict):
         self.rigid_body_map = self.get_rigid_body_map(atom)
 
@@ -362,10 +364,53 @@ class RigidBodyUtils:
             "rotz": str(np.round(vector_degrees.z, decimals=7)),
         }
 
-    def update_cuab_link(self, linked_cua):
+    def update_cuab_link(self, linked_cua, hair_only=False):
         cua_control = self.get_cua_control(linked_cua)
         cua_rigid_body = RigidBody(**cua_control)
         target_rigid_body_name = cua_control["linkTo"].split(":")[-1]
+        if hair_only and target_rigid_body_name not in self.HAIR_ONLY:
+            return None
         cuab_link = self.get_data_for_cuablink(cua_rigid_body, target_rigid_body_name)
-        linked_cua["storables"].append(cuab_link)
-        return linked_cua
+        return cuab_link
+
+    def get_linked_cua_atoms(self, json_data, atom_id, hair_only=False):
+        linked_cuas = self.parse_linked_cua_atoms(json_data, filter_id=atom_id)
+        if len(linked_cuas) == 0:
+            return []
+
+        linked_cua_atoms = []
+        for linked_cua in linked_cuas:
+            cuab_link = self.update_cuab_link(linked_cua, hair_only=hair_only)
+            if cuab_link is not None:
+                linked_cua["storables"].append(cuab_link)
+                linked_cua_atoms.append(linked_cua)
+
+        return linked_cua_atoms
+
+    @classmethod
+    def parse_linked_cua_atoms(cls, atom_elems, filter_id=None):
+        linked_cua_atoms = []
+        for atom_elem in atom_elems:
+            is_custom_unity_asset = atom_elem.get("type") == "CustomUnityAsset"
+            if is_custom_unity_asset and cls.contains_cua_linkto_storable(atom_elem["storables"]):
+                if filter_id:
+                    atom_control = cls.get_linked_cua_atom_control(atom_elem)
+                    link_from = cls.get_linked_cua_atom_link_from(atom_control)
+                    if filter_id != link_from:
+                        continue
+                linked_cua_atoms.append(atom_elem)
+        return linked_cua_atoms
+
+    @staticmethod
+    def contains_cua_linkto_storable(storables):
+        if storables is None:
+            return None
+        return len([e for e in storables if e["id"] == "control" and "linkTo" in e.keys()]) > 0
+
+    @classmethod
+    def get_linked_cua_atom_control(cls, atom_elem):
+        return next((storable for storable in atom_elem["storables"] if storable["id"] == "control"), {})
+
+    @classmethod
+    def get_linked_cua_atom_link_from(cls, linked_cua_atom_control):
+        return linked_cua_atom_control.get("linkTo", "").split(":")[0]

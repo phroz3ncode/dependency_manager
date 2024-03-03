@@ -72,7 +72,7 @@ class MenuExtract(BaseActionsMenu):
         for _, var_ref in self.cache.local.db.vars.items():
             progress.inc()
             parser = AppearanceParser(var_ref)
-            parser.extract_to_file(root_dir)
+            parser.extract_to_file(root_dir, hair_only=True)
 
     def extract_clothing_presets(self):
         self.cache.local.refresh()
